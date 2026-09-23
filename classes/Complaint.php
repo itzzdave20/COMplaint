@@ -23,16 +23,16 @@ class Complaint {
             $stmt = $this->db->prepare($sql);
             $stmt->execute([
                 ':complainant_id' => $data['complainant_id'],
-                ':respondent_name' => $data['respondent_name'] ?? null,
-                ':respondent_type' => $data['respondent_type'] ?? null,
+                ':respondent_name' => emptyToNull($data['respondent_name'] ?? null),
+                ':respondent_type' => emptyToNull($data['respondent_type'] ?? null),
                 ':complaint_title' => $data['complaint_title'],
                 ':complaint_description' => $data['complaint_description'],
-                ':complaint_category' => $data['complaint_category'] ?? null,
-                ':predicted_category' => $data['predicted_category'] ?? null,
+                ':complaint_category' => emptyToNull($data['complaint_category'] ?? null),
+                ':predicted_category' => emptyToNull($data['predicted_category'] ?? null),
                 ':incident_date' => $data['incident_date'],
-                ':incident_location' => $data['incident_location'] ?? null,
+                ':incident_location' => emptyToNull($data['incident_location'] ?? null),
                 ':severity' => $data['severity'] ?? 'medium',
-                ':supporting_documents' => $data['supporting_documents'] ?? null
+                ':supporting_documents' => emptyToNull($data['supporting_documents'] ?? null)
             ]);
             
             $complaintId = $this->db->lastInsertId();
@@ -43,7 +43,7 @@ class Complaint {
             return ['success' => true, 'complaint_id' => $complaintId];
         } catch (PDOException $e) {
             $this->db->rollBack();
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['success' => false, 'message' => 'Failed to submit complaint. Please try again.'];
         }
     }
     
@@ -55,6 +55,16 @@ class Complaint {
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':complaint_id' => $complaintId]);
         return $stmt->fetch();
+    }
+
+    public function canAccessComplaint($complaint, $userId, $role) {
+        if (!$complaint) {
+            return false;
+        }
+        if (in_array($role, staffRoles(), true)) {
+            return true;
+        }
+        return (int)$complaint['complainant_id'] === (int)$userId;
     }
     
     public function getComplaintsByUser($userId) {
@@ -92,6 +102,9 @@ class Complaint {
     }
     
     public function updateStatus($complaintId, $newStatus, $userId) {
+        if (!in_array($newStatus, allowedComplaintStatuses(), true)) {
+            return ['success' => false, 'message' => 'Invalid status'];
+        }
         try {
             $sql = "UPDATE complaints SET status = :status WHERE complaint_id = :complaint_id";
             $stmt = $this->db->prepare($sql);
@@ -99,11 +112,15 @@ class Complaint {
             $this->addTimeline($complaintId, $userId, 'status_changed', "Status changed to $newStatus");
             return ['success' => true];
         } catch (PDOException $e) {
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['success' => false, 'message' => 'Failed to update status. Please try again.'];
         }
     }
     
     public function addComment($complaintId, $userId, $comment) {
+        $comment = trim((string)$comment);
+        if ($comment === '') {
+            return ['success' => false, 'message' => 'Comment cannot be empty'];
+        }
         $sql = "INSERT INTO complaint_comments (complaint_id, user_id, comment_text) 
                 VALUES (:complaint_id, :user_id, :comment_text)";
         $stmt = $this->db->prepare($sql);
@@ -125,6 +142,10 @@ class Complaint {
     }
     
     public function escalateComplaint($complaintId, $escalatedBy, $reason) {
+        $reason = trim((string)$reason);
+        if ($reason === '') {
+            return ['success' => false, 'message' => 'Escalation reason is required'];
+        }
         $sql = "INSERT INTO complaint_escalations (complaint_id, escalated_by, escalation_reason) 
                 VALUES (:complaint_id, :escalated_by, :reason)";
         $stmt = $this->db->prepare($sql);

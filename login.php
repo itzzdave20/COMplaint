@@ -6,17 +6,22 @@ if (isLoggedIn()) {
 }
 
 if (isset($_POST['login'])) {
-    $username = sanitizeInput($_POST['username']);
-    $password = $_POST['password'];
-    
-    $user = new User();
-    $result = $user->login($username, $password);
-    
-    if ($result['success']) {
-        redirect('dashboard.php');
-    } else {
-        $_SESSION['message'] = $result['message'];
+    if (!verifyCsrf()) {
+        $_SESSION['message'] = 'Invalid request. Please try again.';
         $_SESSION['message_type'] = 'danger';
+    } else {
+        $username = sanitizeInput($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+        
+        $user = new User();
+        $result = $user->login($username, $password);
+        
+        if ($result['success']) {
+            redirect('dashboard.php');
+        } else {
+            $_SESSION['message'] = $result['message'];
+            $_SESSION['message_type'] = 'danger';
+        }
     }
 }
 ?>
@@ -39,14 +44,12 @@ if (isset($_POST['login'])) {
                         <h5 class="text-center mb-4">Login</h5>
                         
                         <?php if (isset($_SESSION['message'])): ?>
-                            <div class="alert alert-<?php echo $_SESSION['message_type']; ?> alert-dismissible">
-                                <?php echo $_SESSION['message']; ?>
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
+                            <?php echo showAlert($_SESSION['message'], $_SESSION['message_type'] ?? 'info'); ?>
                             <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
                         <?php endif; ?>
                         
                         <form method="POST" action="login.php">
+                            <?php echo csrfField(); ?>
                             <div class="mb-3">
                                 <label for="username" class="form-label">Username or Email</label>
                                 <input type="text" class="form-control" id="username" name="username" required>

@@ -2,7 +2,7 @@
 require_once 'config/config.php';
 requireLogin();
 
-if (!hasRole(['oswd', 'program_coordinator', 'department_chair', 'guidance_office'])) {
+if (!hasRole(staffRoles())) {
     redirect('dashboard.php');
 }
 
@@ -51,8 +51,16 @@ $complaints = $complaint->getAssignedComplaints($_SESSION['user_id']);
                                                 <td>#<?php echo $comp['complaint_id']; ?></td>
                                                 <td><?php echo htmlspecialchars($comp['complainant_name']); ?></td>
                                                 <td><?php echo htmlspecialchars($comp['complaint_title']); ?></td>
-                                                <td><?php echo ucfirst(str_replace('_', ' ', $comp['status'])); ?></td>
-                                                <td><?php echo ucfirst($comp['severity']); ?></td>
+                                                <td>
+                                                    <span class="badge bg-<?php echo statusBadgeClass($comp['status']); ?>">
+                                                        <?php echo htmlspecialchars(formatStatus($comp['status'])); ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-<?php echo severityBadgeClass($comp['severity']); ?>">
+                                                        <?php echo htmlspecialchars(ucfirst((string)$comp['severity'])); ?>
+                                                    </span>
+                                                </td>
                                                 <td><?php echo date('M d, Y', strtotime($comp['created_at'])); ?></td>
                                                 <td><a href="view_complaint.php?id=<?php echo $comp['complaint_id']; ?>" class="btn btn-sm btn-primary">View</a></td>
                                             </tr>

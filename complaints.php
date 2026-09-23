@@ -2,13 +2,13 @@
 require_once 'config/config.php';
 requireLogin();
 
-if (!hasRole(['oswd', 'program_coordinator', 'department_chair', 'guidance_office'])) {
+if (!hasRole(staffRoles())) {
     redirect('dashboard.php');
 }
 
 $complaint = new Complaint();
 $filters = [];
-if (!empty($_GET['status'])) {
+if (!empty($_GET['status']) && in_array($_GET['status'], allowedComplaintStatuses(), true)) {
     $filters['status'] = $_GET['status'];
 }
 $complaints = $complaint->getAllComplaints($filters);
@@ -73,8 +73,16 @@ $complaints = $complaint->getAllComplaints($filters);
                                                 <td><?php echo htmlspecialchars($comp['complainant_name']); ?></td>
                                                 <td><?php echo htmlspecialchars($comp['complaint_title']); ?></td>
                                                 <td><?php echo htmlspecialchars($comp['predicted_category'] ?? $comp['complaint_category'] ?? 'N/A'); ?></td>
-                                                <td><?php echo ucfirst(str_replace('_', ' ', $comp['status'])); ?></td>
-                                                <td><?php echo ucfirst($comp['severity']); ?></td>
+                                                <td>
+                                                    <span class="badge bg-<?php echo statusBadgeClass($comp['status']); ?>">
+                                                        <?php echo htmlspecialchars(formatStatus($comp['status'])); ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-<?php echo severityBadgeClass($comp['severity']); ?>">
+                                                        <?php echo htmlspecialchars(ucfirst((string)$comp['severity'])); ?>
+                                                    </span>
+                                                </td>
                                                 <td><?php echo date('M d, Y', strtotime($comp['created_at'])); ?></td>
                                                 <td><a href="view_complaint.php?id=<?php echo $comp['complaint_id']; ?>" class="btn btn-sm btn-primary">View</a></td>
                                             </tr>

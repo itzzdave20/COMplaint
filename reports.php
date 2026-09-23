@@ -44,7 +44,7 @@ $total = count($all);
                             <ul class="list-group">
                                 <?php foreach ($stats as $status => $count): ?>
                                     <li class="list-group-item d-flex justify-content-between">
-                                        <span><?php echo ucfirst(str_replace('_', ' ', $status)); ?></span>
+                                        <span><?php echo htmlspecialchars(formatStatus($status)); ?></span>
                                         <strong><?php echo $count; ?></strong>
                                     </li>
                                 <?php endforeach; ?>

@@ -16,46 +16,77 @@ if (!$complaint) {
     redirect('dashboard.php');
 }
 
+if (!$complaintObj->canAccessComplaint($complaint, $_SESSION['user_id'], $_SESSION['role'] ?? '')) {
+    $_SESSION['message'] = 'You do not have permission to view this complaint';
+    $_SESSION['message_type'] = 'danger';
+    redirect('dashboard.php');
+}
+
+$isStaff = hasRole(staffRoles());
+
 // Handle status update
-if (isset($_POST['update_status']) && hasRole(['program_coordinator', 'department_chair', 'guidance_office', 'oswd'])) {
-    $newStatus = $_POST['new_status'];
+if (isset($_POST['update_status']) && $isStaff) {
+    if (!verifyCsrf()) {
+        $_SESSION['message'] = 'Invalid request. Please try again.';
+        $_SESSION['message_type'] = 'danger';
+        redirect('view_complaint.php?id=' . $complaintId);
+    }
+    $newStatus = $_POST['new_status'] ?? '';
     $result = $complaintObj->updateStatus($complaintId, $newStatus, $_SESSION['user_id']);
     
     if ($result['success']) {
         $_SESSION['message'] = 'Status updated successfully';
         $_SESSION['message_type'] = 'success';
-        header("Location: view_complaint.php?id=$complaintId");
-        exit;
+        redirect('view_complaint.php?id=' . $complaintId);
+    } else {
+        $_SESSION['message'] = $result['message'] ?? 'Failed to update status';
+        $_SESSION['message_type'] = 'danger';
     }
 }
 
 // Handle comment submission
 if (isset($_POST['add_comment'])) {
-    $comment = sanitizeInput($_POST['comment_text']);
+    if (!verifyCsrf()) {
+        $_SESSION['message'] = 'Invalid request. Please try again.';
+        $_SESSION['message_type'] = 'danger';
+        redirect('view_complaint.php?id=' . $complaintId);
+    }
+    $comment = sanitizeInput($_POST['comment_text'] ?? '');
     $result = $complaintObj->addComment($complaintId, $_SESSION['user_id'], $comment);
     
     if ($result['success']) {
         $_SESSION['message'] = 'Comment added successfully';
         $_SESSION['message_type'] = 'success';
-        header("Location: view_complaint.php?id=$complaintId");
-        exit;
+        redirect('view_complaint.php?id=' . $complaintId);
+    } else {
+        $_SESSION['message'] = $result['message'] ?? 'Failed to add comment';
+        $_SESSION['message_type'] = 'danger';
     }
 }
 
 // Handle escalation
 if (isset($_POST['escalate']) && hasRole(['program_coordinator', 'oswd'])) {
-    $reason = sanitizeInput($_POST['escalation_reason']);
+    if (!verifyCsrf()) {
+        $_SESSION['message'] = 'Invalid request. Please try again.';
+        $_SESSION['message_type'] = 'danger';
+        redirect('view_complaint.php?id=' . $complaintId);
+    }
+    $reason = sanitizeInput($_POST['escalation_reason'] ?? '');
     $result = $complaintObj->escalateComplaint($complaintId, $_SESSION['user_id'], $reason);
     
     if ($result['success']) {
         $_SESSION['message'] = 'Complaint escalated successfully';
         $_SESSION['message_type'] = 'success';
-        header("Location: view_complaint.php?id=$complaintId");
-        exit;
+        redirect('view_complaint.php?id=' . $complaintId);
+    } else {
+        $_SESSION['message'] = $result['message'] ?? 'Failed to escalate complaint';
+        $_SESSION['message_type'] = 'danger';
     }
 }
 
 $comments = $complaintObj->getComments($complaintId);
+$timeline = $complaintObj->getTimeline($complaintId);
+$complaint = $complaintObj->getComplaintById($complaintId);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -79,10 +110,7 @@ $comments = $complaintObj->getComments($complaintId);
                 </div>
                 
                 <?php if (isset($_SESSION['message'])): ?>
-                    <div class="alert alert-<?php echo $_SESSION['message_type']; ?> alert-dismissible">
-                        <?php echo $_SESSION['message']; ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
+                    <?php echo showAlert($_SESSION['message'], $_SESSION['message_type'] ?? 'info'); ?>
                     <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
                 <?php endif; ?>
                 
@@ -114,7 +142,7 @@ $comments = $complaintObj->getComments($complaintId);
                                     <div class="col-md-9">
                                         <?php echo htmlspecialchars($complaint['respondent_name'] ?? 'N/A'); ?>
                                         <?php if ($complaint['respondent_type']): ?>
-                                            (<?php echo htmlspecialchars($complaint['respondent_type']); ?>)
+                                            (<?php echo htmlspecialchars(formatStatus($complaint['respondent_type'])); ?>)
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -153,7 +181,7 @@ $comments = $complaintObj->getComments($complaintId);
                                     <?php foreach ($comments as $comment): ?>
                                         <div class="border-bottom pb-2 mb-2">
                                             <strong><?php echo htmlspecialchars($comment['full_name']); ?></strong>
-                                            <span class="badge bg-secondary"><?php echo htmlspecialchars($comment['role']); ?></span>
+                                            <span class="badge bg-secondary"><?php echo htmlspecialchars(formatStatus($comment['role'])); ?></span>
                                             <small class="text-muted"><?php echo date('M d, Y H:i', strtotime($comment['created_at'])); ?></small>
                                             <p class="mt-1"><?php echo nl2br(htmlspecialchars($comment['comment_text'])); ?></p>
                                         </div>
@@ -161,12 +189,33 @@ $comments = $complaintObj->getComments($complaintId);
                                 <?php endif; ?>
                                 
                                 <form method="POST" class="mt-3">
+                                    <?php echo csrfField(); ?>
                                     <div class="mb-3">
                                         <label class="form-label">Add Comment</label>
                                         <textarea class="form-control" name="comment_text" rows="3" required></textarea>
                                     </div>
                                     <button type="submit" name="add_comment" class="btn btn-primary">Post Comment</button>
                                 </form>
+                            </div>
+                        </div>
+
+                        <div class="card mb-3">
+                            <div class="card-header"><h5>Timeline</h5></div>
+                            <div class="card-body">
+                                <?php if (empty($timeline)): ?>
+                                    <p class="text-muted mb-0">No timeline events yet</p>
+                                <?php else: ?>
+                                    <ul class="list-group list-group-flush">
+                                        <?php foreach ($timeline as $event): ?>
+                                            <li class="list-group-item px-0">
+                                                <strong><?php echo htmlspecialchars($event['full_name']); ?></strong>
+                                                <span class="badge bg-secondary"><?php echo htmlspecialchars(formatStatus($event['action_type'])); ?></span>
+                                                <small class="text-muted"><?php echo date('M d, Y H:i', strtotime($event['created_at'])); ?></small>
+                                                <p class="mb-0 mt-1"><?php echo htmlspecialchars($event['action_description']); ?></p>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -177,29 +226,23 @@ $comments = $complaintObj->getComments($complaintId);
                             <div class="card-body">
                                 <p>
                                     <strong>Current Status:</strong><br>
-                                    <span class="badge bg-<?php 
-                                        echo $complaint['status'] === 'resolved' ? 'success' : 
-                                            (in_array($complaint['status'], ['under_review', 'investigating']) ? 'info' : 
-                                            ($complaint['status'] === 'escalated' ? 'danger' : 'warning')); 
-                                    ?> fs-6">
-                                        <?php echo ucfirst(str_replace('_', ' ', $complaint['status'])); ?>
+                                    <span class="badge bg-<?php echo statusBadgeClass($complaint['status']); ?> fs-6">
+                                        <?php echo htmlspecialchars(formatStatus($complaint['status'])); ?>
                                     </span>
                                 </p>
                                 <p>
                                     <strong>Severity:</strong><br>
-                                    <span class="badge bg-<?php 
-                                        echo $complaint['severity'] === 'high' ? 'danger' : 
-                                            ($complaint['severity'] === 'medium' ? 'warning' : 'secondary'); 
-                                    ?> fs-6">
-                                        <?php echo ucfirst($complaint['severity']); ?>
+                                    <span class="badge bg-<?php echo severityBadgeClass($complaint['severity']); ?> fs-6">
+                                        <?php echo htmlspecialchars(ucfirst((string)$complaint['severity'])); ?>
                                     </span>
                                 </p>
                                 <p><strong>Created:</strong><br><?php echo date('M d, Y H:i', strtotime($complaint['created_at'])); ?></p>
                                 <p><strong>Last Updated:</strong><br><?php echo date('M d, Y H:i', strtotime($complaint['updated_at'])); ?></p>
                                 
-                                <?php if (hasRole(['program_coordinator', 'department_chair', 'guidance_office', 'oswd'])): ?>
+                                <?php if ($isStaff): ?>
                                     <hr>
                                     <form method="POST">
+                                        <?php echo csrfField(); ?>
                                         <div class="mb-3">
                                             <label class="form-label">Update Status</label>
                                             <select class="form-control" name="new_status" required>
@@ -222,6 +265,7 @@ $comments = $complaintObj->getComments($complaintId);
                                 <div class="card-header bg-warning"><h5>Escalate Complaint</h5></div>
                                 <div class="card-body">
                                     <form method="POST">
+                                        <?php echo csrfField(); ?>
                                         <div class="mb-3">
                                             <label class="form-label">Escalation Reason</label>
                                             <textarea class="form-control" name="escalation_reason" rows="3" required></textarea>

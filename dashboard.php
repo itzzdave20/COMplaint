@@ -17,7 +17,7 @@ if ($userRole === 'student') {
 
 $totalComplaints = count($complaints);
 $pendingCount = count(array_filter($complaints, fn($c) => $c['status'] === 'pending'));
-$inProgressCount = count(array_filter($complaints, fn($c) => in_array($c['status'], ['under_review', 'investigating'])));
+$inProgressCount = count(array_filter($complaints, fn($c) => in_array($c['status'], ['under_review', 'investigating'], true)));
 $resolvedCount = count(array_filter($complaints, fn($c) => $c['status'] === 'resolved'));
 ?>
 <!DOCTYPE html>
@@ -44,10 +44,7 @@ $resolvedCount = count(array_filter($complaints, fn($c) => $c['status'] === 'res
                 </div>
                 
                 <?php if (isset($_SESSION['message'])): ?>
-                    <div class="alert alert-<?php echo $_SESSION['message_type']; ?> alert-dismissible">
-                        <?php echo $_SESSION['message']; ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
+                    <?php echo showAlert($_SESSION['message'], $_SESSION['message_type'] ?? 'info'); ?>
                     <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
                 <?php endif; ?>
                 
@@ -123,22 +120,15 @@ $resolvedCount = count(array_filter($complaints, fn($c) => $c['status'] === 'res
                                             <tr>
                                                 <td>#<?php echo $comp['complaint_id']; ?></td>
                                                 <td><?php echo htmlspecialchars($comp['complaint_title']); ?></td>
-                                                <td><?php echo htmlspecialchars($comp['predicted_category'] ?? 'N/A'); ?></td>
+                                                <td><?php echo htmlspecialchars($comp['predicted_category'] ?? $comp['complaint_category'] ?? 'N/A'); ?></td>
                                                 <td>
-                                                    <span class="badge bg-<?php 
-                                                        echo $comp['status'] === 'resolved' ? 'success' : 
-                                                            (in_array($comp['status'], ['under_review', 'investigating']) ? 'info' : 
-                                                            ($comp['status'] === 'escalated' ? 'danger' : 'warning')); 
-                                                    ?>">
-                                                        <?php echo ucfirst($comp['status']); ?>
+                                                    <span class="badge bg-<?php echo statusBadgeClass($comp['status']); ?>">
+                                                        <?php echo htmlspecialchars(formatStatus($comp['status'])); ?>
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <span class="badge bg-<?php 
-                                                        echo $comp['severity'] === 'high' ? 'danger' : 
-                                                            ($comp['severity'] === 'medium' ? 'warning' : 'secondary'); 
-                                                    ?>">
-                                                        <?php echo ucfirst($comp['severity']); ?>
+                                                    <span class="badge bg-<?php echo severityBadgeClass($comp['severity']); ?>">
+                                                        <?php echo htmlspecialchars(ucfirst((string)$comp['severity'])); ?>
                                                     </span>
                                                 </td>
                                                 <td><?php echo date('M d, Y', strtotime($comp['created_at'])); ?></td>

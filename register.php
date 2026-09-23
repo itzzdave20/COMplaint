@@ -3,20 +3,23 @@ require_once 'config/config.php';
 if (isLoggedIn()) redirect('dashboard.php');
 
 if (isset($_POST['register'])) {
-    if ($_POST['password'] !== $_POST['confirm_password']) {
+    if (!verifyCsrf()) {
+        $_SESSION['message'] = 'Invalid request. Please try again.';
+        $_SESSION['message_type'] = 'danger';
+    } elseif (($_POST['password'] ?? '') !== ($_POST['confirm_password'] ?? '')) {
         $_SESSION['message'] = 'Passwords do not match!';
         $_SESSION['message_type'] = 'danger';
     } else {
         $data = [
-            'username' => sanitizeInput($_POST['username']),
-            'email' => sanitizeInput($_POST['email']),
-            'password' => $_POST['password'],
-            'full_name' => sanitizeInput($_POST['full_name']),
-            'role' => $_POST['role'],
-            'student_id' => sanitizeInput($_POST['student_id']),
-            'department' => sanitizeInput($_POST['department']),
-            'program' => sanitizeInput($_POST['program']),
-            'contact_number' => sanitizeInput($_POST['contact_number'])
+            'username' => sanitizeInput($_POST['username'] ?? ''),
+            'email' => sanitizeInput($_POST['email'] ?? ''),
+            'password' => $_POST['password'] ?? '',
+            'full_name' => sanitizeInput($_POST['full_name'] ?? ''),
+            'role' => 'student',
+            'student_id' => sanitizeInput($_POST['student_id'] ?? ''),
+            'department' => sanitizeInput($_POST['department'] ?? ''),
+            'program' => sanitizeInput($_POST['program'] ?? ''),
+            'contact_number' => sanitizeInput($_POST['contact_number'] ?? '')
         ];
         
         $user = new User();
@@ -44,14 +47,12 @@ if (isset($_POST['register'])) {
                         <h3 class="text-center mb-4">Register Account</h3>
                         
                         <?php if (isset($_SESSION['message'])): ?>
-                            <div class="alert alert-<?php echo $_SESSION['message_type']; ?> alert-dismissible">
-                                <?php echo $_SESSION['message']; ?>
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
+                            <?php echo showAlert($_SESSION['message'], $_SESSION['message_type'] ?? 'info'); ?>
                             <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
                         <?php endif; ?>
                         
                         <form method="POST" action="register.php">
+                            <?php echo csrfField(); ?>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Full Name *</label>
@@ -59,7 +60,7 @@ if (isset($_POST['register'])) {
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Username *</label>
-                                    <input type="text" class="form-control" name="username" required>
+                                    <input type="text" class="form-control" name="username" minlength="3" maxlength="50" required>
                                 </div>
                             </div>
                             <div class="row">
@@ -68,23 +69,8 @@ if (isset($_POST['register'])) {
                                     <input type="email" class="form-control" name="email" required>
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Role *</label>
-                                    <select class="form-control" name="role" required>
-                                        <option value="student">Student</option>
-                                        <option value="program_coordinator">Program Coordinator</option>
-                                        <option value="department_chair">Department Chair</option>
-                                        <option value="guidance_office">Guidance Office</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
                                     <label class="form-label">Student ID</label>
                                     <input type="text" class="form-control" name="student_id">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Contact Number</label>
-                                    <input type="text" class="form-control" name="contact_number">
                                 </div>
                             </div>
                             <div class="row">
@@ -97,10 +83,15 @@ if (isset($_POST['register'])) {
                                     <input type="text" class="form-control" name="program">
                                 </div>
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label">Contact Number</label>
+                                <input type="text" class="form-control" name="contact_number">
+                            </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Password *</label>
-                                    <input type="password" class="form-control" name="password" required>
+                                    <input type="password" class="form-control" name="password" minlength="6" required>
+                                    <small class="text-muted">At least 6 characters</small>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Confirm Password *</label>

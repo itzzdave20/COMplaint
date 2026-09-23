@@ -23,7 +23,7 @@ $role = $_SESSION['role'] ?? '';
                 </li>
             <?php endif; ?>
             
-            <?php if (in_array($role, ['oswd', 'program_coordinator', 'department_chair', 'guidance_office'])): ?>
+            <?php if (in_array($role, staffRoles(), true)): ?>
                 <li class="nav-item">
                     <a class="nav-link" href="complaints.php">
                         <i class="fas fa-folder-open"></i> All Complaints

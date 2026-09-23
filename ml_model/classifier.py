@@ -14,7 +14,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 
 class ComplaintClassifier:
-    def __init__(self, model_path='models'):
+    def __init__(self, model_path=None):
+        if model_path is None:
+            model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
         self.model_path = model_path
         self.vectorizer = TfidfVectorizer(max_features=500, ngram_range=(1, 2))
         self.classifier = RandomForestClassifier(
@@ -45,9 +47,9 @@ class ComplaintClassifier:
         if not os.path.exists(self.model_path):
             os.makedirs(self.model_path)
             
-        with open(f'{self.model_path}/vectorizer.pkl', 'wb') as f:
+        with open(os.path.join(self.model_path, 'vectorizer.pkl'), 'wb') as f:
             pickle.dump(self.vectorizer, f)
-        with open(f'{self.model_path}/classifier.pkl', 'wb') as f:
+        with open(os.path.join(self.model_path, 'classifier.pkl'), 'wb') as f:
             pickle.dump(self.classifier, f)
             
         return {
@@ -58,9 +60,9 @@ class ComplaintClassifier:
     def load_model(self):
         """Load trained model"""
         try:
-            with open(f'{self.model_path}/vectorizer.pkl', 'rb') as f:
+            with open(os.path.join(self.model_path, 'vectorizer.pkl'), 'rb') as f:
                 self.vectorizer = pickle.load(f)
-            with open(f'{self.model_path}/classifier.pkl', 'rb') as f:
+            with open(os.path.join(self.model_path, 'classifier.pkl'), 'rb') as f:
                 self.classifier = pickle.load(f)
             return True
         except:

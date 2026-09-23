@@ -49,8 +49,8 @@ $users = $userObj->getAllUsers();
                                             <td><?php echo htmlspecialchars($u['full_name']); ?></td>
                                             <td><?php echo htmlspecialchars($u['username']); ?></td>
                                             <td><?php echo htmlspecialchars($u['email']); ?></td>
-                                            <td><?php echo ucfirst(str_replace('_', ' ', $u['role'])); ?></td>
-                                            <td><?php echo ucfirst($u['status']); ?></td>
+                                            <td><?php echo htmlspecialchars(formatStatus($u['role'])); ?></td>
+                                            <td><?php echo htmlspecialchars(ucfirst((string)$u['status'])); ?></td>
                                             <td><?php echo date('M d, Y', strtotime($u['created_at'])); ?></td>
                                         </tr>
                                     <?php endforeach; ?>

@@ -5,19 +5,31 @@ requireLogin();
 $userObj = new User();
 
 if (isset($_POST['update_profile'])) {
-    $data = [
-        'full_name' => sanitizeInput($_POST['full_name']),
-        'email' => sanitizeInput($_POST['email']),
-        'contact_number' => sanitizeInput($_POST['contact_number']),
-        'department' => sanitizeInput($_POST['department']),
-        'program' => sanitizeInput($_POST['program'])
-    ];
-    $result = $userObj->updateProfile($_SESSION['user_id'], $data);
-    $_SESSION['message'] = $result['message'];
-    $_SESSION['message_type'] = $result['success'] ? 'success' : 'danger';
-    if ($result['success']) {
-        $_SESSION['full_name'] = $data['full_name'];
-        $_SESSION['email'] = $data['email'];
+    if (!verifyCsrf()) {
+        $_SESSION['message'] = 'Invalid request. Please try again.';
+        $_SESSION['message_type'] = 'danger';
+    } else {
+        $email = sanitizeInput($_POST['email'] ?? '');
+        $fullName = sanitizeInput($_POST['full_name'] ?? '');
+        if ($fullName === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['message'] = 'Please provide a valid name and email address.';
+            $_SESSION['message_type'] = 'danger';
+        } else {
+            $data = [
+                'full_name' => $fullName,
+                'email' => $email,
+                'contact_number' => sanitizeInput($_POST['contact_number'] ?? ''),
+                'department' => sanitizeInput($_POST['department'] ?? ''),
+                'program' => sanitizeInput($_POST['program'] ?? '')
+            ];
+            $result = $userObj->updateProfile($_SESSION['user_id'], $data);
+            $_SESSION['message'] = $result['message'];
+            $_SESSION['message_type'] = $result['success'] ? 'success' : 'danger';
+            if ($result['success']) {
+                $_SESSION['full_name'] = $data['full_name'];
+                $_SESSION['email'] = $data['email'];
+            }
+        }
     }
 }
 
@@ -42,15 +54,13 @@ $user = $userObj->getUserById($_SESSION['user_id']);
                     <h1 class="h2">My Profile</h1>
                 </div>
                 <?php if (isset($_SESSION['message'])): ?>
-                    <div class="alert alert-<?php echo $_SESSION['message_type']; ?> alert-dismissible">
-                        <?php echo $_SESSION['message']; ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
+                    <?php echo showAlert($_SESSION['message'], $_SESSION['message_type'] ?? 'info'); ?>
                     <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
                 <?php endif; ?>
                 <div class="card">
                     <div class="card-body">
                         <form method="POST">
+                            <?php echo csrfField(); ?>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Full Name</label>
@@ -68,7 +78,7 @@ $user = $userObj->getUserById($_SESSION['user_id']);
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Role</label>
-                                    <input type="text" class="form-control" value="<?php echo ucfirst(str_replace('_', ' ', $user['role'])); ?>" disabled>
+                                    <input type="text" class="form-control" value="<?php echo htmlspecialchars(formatStatus($user['role'])); ?>" disabled>
                                 </div>
                             </div>
                             <div class="row">

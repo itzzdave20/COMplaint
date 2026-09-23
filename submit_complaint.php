@@ -10,52 +10,115 @@ if ($_SESSION['role'] !== 'student') {
 }
 
 if (isset($_POST['submit_complaint'])) {
-    $complaint = new Complaint();
-    $mlClassifier = new MLClassifier();
-    
-    // Handle file upload
-    $supportingDocs = null;
-    if (isset($_FILES['supporting_documents']) && $_FILES['supporting_documents']['error'] === UPLOAD_ERR_OK) {
-        $uploadDir = __DIR__ . '/uploads/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
-        }
-        
-        $fileName = time() . '_' . basename($_FILES['supporting_documents']['name']);
-        $targetPath = $uploadDir . $fileName;
-        
-        if (move_uploaded_file($_FILES['supporting_documents']['tmp_name'], $targetPath)) {
-            $supportingDocs = $fileName;
-        }
-    }
-    
-    // Classify complaint using ML
-    $complaintText = $_POST['complaint_title'] . ' ' . $_POST['complaint_description'];
-    $mlResult = $mlClassifier->classifyComplaint($complaintText);
-    
-    $data = [
-        'complainant_id' => $_SESSION['user_id'],
-        'respondent_name' => sanitizeInput($_POST['respondent_name']),
-        'respondent_type' => sanitizeInput($_POST['respondent_type']),
-        'complaint_title' => sanitizeInput($_POST['complaint_title']),
-        'complaint_description' => sanitizeInput($_POST['complaint_description']),
-        'complaint_category' => sanitizeInput($_POST['complaint_category']),
-        'predicted_category' => $mlResult['category'] ?? null,
-        'incident_date' => $_POST['incident_date'],
-        'incident_location' => sanitizeInput($_POST['incident_location']),
-        'severity' => $_POST['severity'],
-        'supporting_documents' => $supportingDocs
-    ];
-    
-    $result = $complaint->submitComplaint($data);
-    
-    if ($result['success']) {
-        $_SESSION['message'] = 'Complaint submitted successfully!';
-        $_SESSION['message_type'] = 'success';
-        redirect('view_complaint.php?id=' . $result['complaint_id']);
-    } else {
-        $_SESSION['message'] = 'Failed to submit complaint: ' . $result['message'];
+    if (!verifyCsrf()) {
+        $_SESSION['message'] = 'Invalid request. Please try again.';
         $_SESSION['message_type'] = 'danger';
+    } else {
+        $complaint = new Complaint();
+        $mlClassifier = new MLClassifier();
+        $errors = [];
+
+        $title = sanitizeInput($_POST['complaint_title'] ?? '');
+        $description = sanitizeInput($_POST['complaint_description'] ?? '');
+        $category = sanitizeInput($_POST['complaint_category'] ?? '');
+        $respondentName = sanitizeInput($_POST['respondent_name'] ?? '');
+        $respondentType = sanitizeInput($_POST['respondent_type'] ?? '');
+        $incidentDate = $_POST['incident_date'] ?? '';
+        $incidentLocation = sanitizeInput($_POST['incident_location'] ?? '');
+        $severity = $_POST['severity'] ?? 'medium';
+
+        if ($title === '' || $description === '') {
+            $errors[] = 'Title and description are required.';
+        }
+        if (!in_array($category, allowedComplaintCategories(), true)) {
+            $errors[] = 'Please select a valid complaint category.';
+        }
+        if ($respondentType !== '' && !in_array($respondentType, allowedRespondentTypes(), true)) {
+            $errors[] = 'Please select a valid respondent type.';
+        }
+        if (!in_array($severity, allowedSeverities(), true)) {
+            $severity = 'medium';
+        }
+        if ($incidentDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $incidentDate)) {
+            $errors[] = 'Please provide a valid incident date.';
+        } elseif (strtotime($incidentDate) > strtotime(date('Y-m-d'))) {
+            $errors[] = 'Incident date cannot be in the future.';
+        }
+
+        $supportingDocs = null;
+        if (isset($_FILES['supporting_documents']) && $_FILES['supporting_documents']['error'] !== UPLOAD_ERR_NO_FILE) {
+            $file = $_FILES['supporting_documents'];
+            if ($file['error'] !== UPLOAD_ERR_OK) {
+                $errors[] = 'File upload failed. Please try again.';
+            } elseif ($file['size'] > MAX_FILE_SIZE) {
+                $errors[] = 'File is too large. Maximum size is 5MB.';
+            } else {
+                $originalName = basename($file['name']);
+                $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+                if (!in_array($ext, ALLOWED_EXTENSIONS, true)) {
+                    $errors[] = 'Invalid file type. Allowed: PDF, JPG, PNG, DOC, DOCX.';
+                } else {
+                    $finfo = new finfo(FILEINFO_MIME_TYPE);
+                    $mime = $finfo->file($file['tmp_name']);
+                    $allowedMimes = [
+                        'pdf' => ['application/pdf'],
+                        'jpg' => ['image/jpeg'],
+                        'jpeg' => ['image/jpeg'],
+                        'png' => ['image/png'],
+                        'doc' => ['application/msword'],
+                        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+                    ];
+                    if (!isset($allowedMimes[$ext]) || !in_array($mime, $allowedMimes[$ext], true)) {
+                        $errors[] = 'The uploaded file type does not match its extension.';
+                    } else {
+                        $uploadDir = rtrim(UPLOAD_DIR, '/\\') . DIRECTORY_SEPARATOR;
+                        if (!is_dir($uploadDir)) {
+                            mkdir($uploadDir, 0755, true);
+                        }
+                        $fileName = time() . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+                        $targetPath = $uploadDir . $fileName;
+                        if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+                            $supportingDocs = $fileName;
+                        } else {
+                            $errors[] = 'Failed to save the uploaded file.';
+                        }
+                    }
+                }
+            }
+        }
+
+        if (empty($errors)) {
+            $complaintText = $title . ' ' . $description;
+            $mlResult = $mlClassifier->classifyComplaint($complaintText);
+
+            $data = [
+                'complainant_id' => $_SESSION['user_id'],
+                'respondent_name' => $respondentName,
+                'respondent_type' => $respondentType,
+                'complaint_title' => $title,
+                'complaint_description' => $description,
+                'complaint_category' => $category,
+                'predicted_category' => $mlResult['category'] ?? null,
+                'incident_date' => $incidentDate,
+                'incident_location' => $incidentLocation,
+                'severity' => $severity,
+                'supporting_documents' => $supportingDocs
+            ];
+
+            $result = $complaint->submitComplaint($data);
+
+            if ($result['success']) {
+                $_SESSION['message'] = 'Complaint submitted successfully!';
+                $_SESSION['message_type'] = 'success';
+                redirect('view_complaint.php?id=' . $result['complaint_id']);
+            } else {
+                $_SESSION['message'] = 'Failed to submit complaint. Please try again.';
+                $_SESSION['message_type'] = 'danger';
+            }
+        } else {
+            $_SESSION['message'] = implode(' ', $errors);
+            $_SESSION['message_type'] = 'danger';
+        }
     }
 }
 ?>
@@ -78,15 +141,13 @@ if (isset($_POST['submit_complaint'])) {
                     <h1 class="h2">Submit New Complaint</h1>
                 </div>
                 <?php if (isset($_SESSION['message'])): ?>
-                    <div class="alert alert-<?php echo $_SESSION['message_type']; ?> alert-dismissible">
-                        <?php echo $_SESSION['message']; ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
+                    <?php echo showAlert($_SESSION['message'], $_SESSION['message_type'] ?? 'info'); ?>
                     <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
                 <?php endif; ?>
                 <div class="card">
                     <div class="card-body">
                         <form method="POST" action="submit_complaint.php" enctype="multipart/form-data">
+                            <?php echo csrfField(); ?>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Complaint Title *</label>
@@ -96,12 +157,10 @@ if (isset($_POST['submit_complaint'])) {
                                     <label class="form-label">Complaint Category *</label>
                                     <select class="form-control" name="complaint_category" required>
                                         <option value="">Select Category</option>
+                                        <option value="Academic Integrity Violation">Academic Integrity Violation</option>
                                         <option value="Unprofessional Behavior">Unprofessional Behavior</option>
-                                        <option value="Bullying">Bullying</option>
-                                        <option value="Harassment">Harassment</option>
-                                        <option value="Discrimination">Discrimination</option>
-                                        <option value="Academic Misconduct">Academic Misconduct</option>
-                                        <option value="Other">Other</option>
+                                        <option value="Institutional Rules Violation">Institutional Rules Violation</option>
+                                        <option value="Teaching Standards Failure">Teaching Standards Failure</option>
                                     </select>
                                 </div>
                             </div>

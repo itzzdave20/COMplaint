@@ -1,4 +1,4 @@
 <?php
-header("Location: login.php");
-exit;
-?>
+require_once 'config/config.php';
+redirect('login.php');
+
