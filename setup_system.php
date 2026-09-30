@@ -22,6 +22,7 @@ $migrations = [
     'migrate_workflow.php',
     'migrate_notifications.php',
     'migrate_login_risk.php',
+    'migrate_lockout.php',
 ];
 
 echo "=== OSWD Complaint System Setup ===\n\n";

@@ -61,10 +61,26 @@ if (isset($_POST['login'])) {
 
         $_SESSION['message'] = $result['message'] ?? 'Login failed.';
         $_SESSION['message_type'] = 'danger';
+        $_SESSION['login_gate'] = [
+            'type' => $result['lockout'] ?? null,
+            'retry_after' => (int)($result['retry_after'] ?? 0),
+            'show_student_service' => !empty($result['show_student_service']),
+            'username' => $username,
+            'until' => time() + (int)($result['retry_after'] ?? 0),
+        ];
     }
 }
 
 $showOtpStep = $loginAuth->hasPendingOtp();
+$loginGate = $_SESSION['login_gate'] ?? [];
+if (!empty($loginGate['until']) && time() >= (int)$loginGate['until'] && ($loginGate['type'] ?? '') === 'cooldown') {
+    unset($_SESSION['login_gate']);
+    $loginGate = [];
+}
+$isCooldown = ($loginGate['type'] ?? '') === 'cooldown' && time() < (int)($loginGate['until'] ?? 0);
+$isBlocked = ($loginGate['type'] ?? '') === 'blocked' || !empty($loginGate['show_student_service']);
+$cooldownSeconds = $isCooldown ? max(1, (int)$loginGate['until'] - time()) : 0;
+$loginUsername = $loginGate['username'] ?? '';
 $maskedEmail = '';
 if ($showOtpStep && !empty($_SESSION['pending_login_otp']['email'])) {
     $email = (string)$_SESSION['pending_login_otp']['email'];
@@ -101,6 +117,11 @@ if ($authMessage !== null) {
                 <?php else: ?>
                     <h2 class="h4 mb-2">Sign in</h2>
                     <p class="text-muted small mb-4">Use your student or staff account for NEMSU Cantilan.</p>
+                    <?php if ($isBlocked): ?>
+                        <div class="alert alert-warning py-2" role="alert">
+                            Your account is locked for 1 day. Contact Student Services so OSWD can review your request and help you reset your credentials.
+                        </div>
+                    <?php endif; ?>
                 <?php endif; ?>
 
                 <?php if ($authMessage !== null): ?>
@@ -131,14 +152,15 @@ if ($authMessage !== null) {
                     </form>
                     <p class="text-center mt-3 mb-0"><a href="login.php?cancel_otp=1" class="small">Cancel and sign in again</a></p>
                 <?php else: ?>
-                    <form method="POST" action="login.php" data-no-loading>
+                    <form method="POST" action="login.php" data-no-loading id="loginForm"<?php echo $isCooldown ? ' class="login-form--locked"' : ''; ?>>
                         <?php echo csrfField(); ?>
                         <div class="mb-3">
                             <label for="username" class="form-label">Username or email</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-person" aria-hidden="true"></i></span>
                                 <input type="text" class="form-control" id="username" name="username" required autofocus
-                                       autocomplete="username">
+                                       autocomplete="username" value="<?php echo htmlspecialchars($loginUsername, ENT_QUOTES, 'UTF-8'); ?>"
+                                       <?php echo $isCooldown ? 'readonly' : ''; ?>>
                             </div>
                         </div>
                         <div class="mb-4">
@@ -146,14 +168,24 @@ if ($authMessage !== null) {
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-lock" aria-hidden="true"></i></span>
                                 <input type="password" class="form-control" id="password" name="password" required
-                                       autocomplete="current-password">
+                                       autocomplete="current-password"<?php echo $isCooldown ? ' disabled' : ''; ?>>
                                 <button type="button" class="btn btn-outline-secondary" data-toggle-password="password"
-                                        aria-label="Show password"><i class="bi bi-eye" aria-hidden="true"></i></button>
+                                        aria-label="Show password"<?php echo $isCooldown ? ' disabled' : ''; ?>><i class="bi bi-eye" aria-hidden="true"></i></button>
                             </div>
                         </div>
-                        <button type="submit" name="login" class="btn btn-primary w-100">Sign in</button>
+                        <button type="submit" name="login" class="btn btn-primary w-100" id="loginSubmitBtn"<?php echo $isCooldown ? ' disabled' : ''; ?>>
+                            <?php echo $isCooldown ? 'Please wait' : 'Sign in'; ?>
+                        </button>
+                        <?php if ($isCooldown): ?>
+                            <p class="text-center small text-muted mt-3 mb-0" id="loginCooldownTimer" data-seconds="<?php echo (int)$cooldownSeconds; ?>" aria-live="polite">
+                                Try again in <?php echo (int)$cooldownSeconds; ?>s
+                            </p>
+                        <?php endif; ?>
                     </form>
-                    <p class="text-center text-muted small mt-4 mb-0">No account? <a href="register.php">Register as a student</a></p>
+                    <p class="text-center small mt-3 mb-0">
+                        <a href="student_services.php">Need help? Contact Student Services</a>
+                    </p>
+                    <p class="text-center text-muted small mt-2 mb-0">No account? <a href="register.php">Register as a student</a></p>
                 <?php endif; ?>
             </div>
         </div>

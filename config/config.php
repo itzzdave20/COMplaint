@@ -49,6 +49,11 @@ define('LOGIN_RF_ENABLED', true);
 define('LOGIN_RF_SHADOW_MODE', false);
 define('LOGIN_HASH_SALT', 'nemsu-oswd-login-v1');
 define('LOGIN_OTP_TTL', 600);
+define('LOGIN_COOLDOWN_AFTER_FAILS', 2);
+define('LOGIN_COOLDOWN_SECONDS', 30);
+define('LOGIN_BLOCK_AFTER_FAILS', 3);
+define('LOGIN_BLOCK_SECONDS', 86400);
+define('LOGIN_RESET_TTL', 3600);
 
 // Timezone
 date_default_timezone_set('Asia/Manila');

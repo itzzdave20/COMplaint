@@ -12,12 +12,36 @@ class LoginAuth {
     public function attempt($username, $password) {
         $username = trim((string)$username);
         $context = $this->captureContext();
+        $lockout = new AccountLockout();
+        $gate = $lockout->inspect($username);
+
+        if (empty($gate['allowed'])) {
+            $reason = ($gate['type'] ?? '') === 'blocked' ? 'account_blocked' : 'login_cooldown';
+            $this->logEvent(!empty($gate['user']['user_id']) ? (int)$gate['user']['user_id'] : null, $username, false, $reason, $context, null);
+            return [
+                'success' => false,
+                'lockout' => $gate['type'],
+                'retry_after' => $gate['retry_after'],
+                'show_student_service' => !empty($gate['show_student_service']),
+                'message' => $gate['message'],
+            ];
+        }
 
         $user = $this->findActiveUser($username);
         if (!$user || !password_verify($password, $user['password'])) {
-            $this->logEvent(null, $username, false, 'invalid_credentials', $context, null);
-            return ['success' => false, 'message' => 'Invalid credentials!'];
+            $fail = $lockout->recordFailure($username, $gate['user'] ?? null);
+            $reason = ($fail['type'] ?? '') === 'blocked' ? 'account_blocked' : 'invalid_credentials';
+            $this->logEvent(!empty($fail['user']['user_id']) ? (int)$fail['user']['user_id'] : null, $username, false, $reason, $context, null);
+            return [
+                'success' => false,
+                'lockout' => ($fail['type'] ?? 'invalid') !== 'invalid' ? $fail['type'] : null,
+                'retry_after' => $fail['retry_after'] ?? 0,
+                'show_student_service' => !empty($fail['show_student_service']),
+                'message' => $fail['message'] ?? 'Invalid credentials!',
+            ];
         }
+
+        $lockout->recordSuccess($username, $user);
 
         if ($this->isLoginRfExempt($user)) {
             $risk = ['label' => 'exempt', 'score' => 0.0, 'model_version' => 'exempt'];
