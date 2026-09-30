@@ -12,26 +12,45 @@ $complaints = $complaint->getComplaintsByUser($_SESSION['user_id']);
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Complaints - OSWD</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/style.css">
+    <?php $pageTitle = 'My Complaints - ' . SITE_NAME; include 'includes/head.php'; ?>
 </head>
-<body>
-    <?php include 'includes/navbar.php'; ?>
-    <div class="container-fluid">
-        <div class="row">
-            <?php include 'includes/sidebar.php'; ?>
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2">My Complaints</h1>
-                    <a href="submit_complaint.php" class="btn btn-primary btn-sm">Submit New Complaint</a>
+<body class="app-body">
+<?php include 'includes/skip_link.php'; ?>
+<?php include 'includes/navbar.php'; ?>
+<?php include 'includes/flash.php'; ?>
+
+<div class="container-fluid">
+    <div class="row">
+        <?php include 'includes/sidebar.php'; ?>
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 app-main" id="main-content">
+            <div class="d-flex justify-content-between flex-wrap align-items-center pt-3 nemsu-page-header gap-2">
+                <div>
+                    <h1 class="h2">My complaints</h1>
+                    <p class="text-muted mb-0">All cases you have submitted</p>
                 </div>
-                <div class="card">
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-striped table-hover">
+                <a href="submit_complaint.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>File a complaint</a>
+            </div>
+
+            <div class="card nemsu-panel">
+                <div class="card-body p-0">
+                    <?php if (empty($complaints)): ?>
+                        <?php echo renderEmptyState('journal-x', 'No complaints yet', 'When you file a complaint, it will appear here with status updates.', 'File a complaint', 'submit_complaint.php'); ?>
+                    <?php else: ?>
+                        <div class="d-md-none p-3 vstack gap-3">
+                            <?php foreach ($complaints as $comp): ?>
+                                <article class="nemsu-complaint-card">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted small">#<?php echo (int)$comp['complaint_id']; ?></span>
+                                        <span class="text-muted small"><?php echo date('M j, Y', strtotime($comp['created_at'])); ?></span>
+                                    </div>
+                                    <h2 class="h6"><?php echo htmlspecialchars($comp['complaint_title']); ?></h2>
+                                    <div class="d-flex flex-wrap gap-2 my-2"><?php echo statusBadgeHtml($comp['status']); ?><?php echo severityBadgeHtml($comp['severity']); ?></div>
+                                    <a href="view_complaint.php?id=<?php echo (int)$comp['complaint_id']; ?>" class="btn btn-sm btn-outline-primary w-100">View</a>
+                                </article>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="table-responsive d-none d-md-block nemsu-table-wrap">
+                            <table class="table table-hover align-middle mb-0 nemsu-table">
                                 <thead>
                                     <tr>
                                         <th>ID</th>
@@ -40,41 +59,30 @@ $complaints = $complaint->getComplaintsByUser($_SESSION['user_id']);
                                         <th>Status</th>
                                         <th>Severity</th>
                                         <th>Date</th>
-                                        <th>Actions</th>
+                                        <th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php if (empty($complaints)): ?>
-                                        <tr><td colspan="7" class="text-center">No complaints submitted yet</td></tr>
-                                    <?php else: ?>
-                                        <?php foreach ($complaints as $comp): ?>
-                                            <tr>
-                                                <td>#<?php echo $comp['complaint_id']; ?></td>
-                                                <td><?php echo htmlspecialchars($comp['complaint_title']); ?></td>
-                                                <td><?php echo htmlspecialchars($comp['predicted_category'] ?? $comp['complaint_category'] ?? 'N/A'); ?></td>
-                                                <td>
-                                                    <span class="badge bg-<?php echo statusBadgeClass($comp['status']); ?>">
-                                                        <?php echo htmlspecialchars(formatStatus($comp['status'])); ?>
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-<?php echo severityBadgeClass($comp['severity']); ?>">
-                                                        <?php echo htmlspecialchars(ucfirst((string)$comp['severity'])); ?>
-                                                    </span>
-                                                </td>
-                                                <td><?php echo date('M d, Y', strtotime($comp['created_at'])); ?></td>
-                                                <td><a href="view_complaint.php?id=<?php echo $comp['complaint_id']; ?>" class="btn btn-sm btn-primary">View</a></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
+                                    <?php foreach ($complaints as $comp): ?>
+                                        <tr>
+                                            <td>#<?php echo (int)$comp['complaint_id']; ?></td>
+                                            <td><?php echo htmlspecialchars($comp['complaint_title']); ?></td>
+                                            <td><small><?php echo htmlspecialchars($comp['predicted_category'] ?? $comp['complaint_category'] ?? '—'); ?></small></td>
+                                            <td><?php echo statusBadgeHtml($comp['status']); ?></td>
+                                            <td><?php echo severityBadgeHtml($comp['severity']); ?></td>
+                                            <td><?php echo date('M j, Y', strtotime($comp['created_at'])); ?></td>
+                                            <td><a href="view_complaint.php?id=<?php echo (int)$comp['complaint_id']; ?>" class="btn btn-sm btn-primary">Open</a></td>
+                                        </tr>
+                                    <?php endforeach; ?>
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    <?php endif; ?>
                 </div>
-            </main>
-        </div>
+            </div>
+        </main>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</div>
+<?php include 'includes/scripts.php'; ?>
 </body>
 </html>

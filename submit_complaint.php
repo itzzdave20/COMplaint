@@ -2,12 +2,13 @@
 require_once 'config/config.php';
 requireLogin();
 
-// Only students can submit complaints
 if ($_SESSION['role'] !== 'student') {
     $_SESSION['message'] = 'Only students can submit complaints';
     $_SESSION['message_type'] = 'danger';
     redirect('dashboard.php');
 }
+
+$successId = isset($_GET['success']) ? (int)$_GET['success'] : 0;
 
 if (isset($_POST['submit_complaint'])) {
     if (!verifyCsrf()) {
@@ -15,7 +16,6 @@ if (isset($_POST['submit_complaint'])) {
         $_SESSION['message_type'] = 'danger';
     } else {
         $complaint = new Complaint();
-        $mlClassifier = new MLClassifier();
         $errors = [];
 
         $title = sanitizeInput($_POST['complaint_title'] ?? '');
@@ -66,7 +66,7 @@ if (isset($_POST['submit_complaint'])) {
                         'jpeg' => ['image/jpeg'],
                         'png' => ['image/png'],
                         'doc' => ['application/msword'],
-                        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+                        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
                     ];
                     if (!isset($allowedMimes[$ext]) || !in_array($mime, $allowedMimes[$ext], true)) {
                         $errors[] = 'The uploaded file type does not match its extension.';
@@ -88,9 +88,6 @@ if (isset($_POST['submit_complaint'])) {
         }
 
         if (empty($errors)) {
-            $complaintText = $title . ' ' . $description;
-            $mlResult = $mlClassifier->classifyComplaint($complaintText);
-
             $data = [
                 'complainant_id' => $_SESSION['user_id'],
                 'respondent_name' => $respondentName,
@@ -98,128 +95,178 @@ if (isset($_POST['submit_complaint'])) {
                 'complaint_title' => $title,
                 'complaint_description' => $description,
                 'complaint_category' => $category,
-                'predicted_category' => $mlResult['category'] ?? null,
+                'predicted_category' => $category,
                 'incident_date' => $incidentDate,
                 'incident_location' => $incidentLocation,
                 'severity' => $severity,
-                'supporting_documents' => $supportingDocs
+                'supporting_documents' => $supportingDocs,
             ];
 
             $result = $complaint->submitComplaint($data);
 
             if ($result['success']) {
-                $_SESSION['message'] = 'Complaint submitted successfully!';
-                $_SESSION['message_type'] = 'success';
-                redirect('view_complaint.php?id=' . $result['complaint_id']);
-            } else {
-                $_SESSION['message'] = 'Failed to submit complaint. Please try again.';
-                $_SESSION['message_type'] = 'danger';
+                redirect('submit_complaint.php?success=' . (int)$result['complaint_id']);
             }
+            $_SESSION['message'] = 'Failed to submit complaint. Please try again.';
+            $_SESSION['message_type'] = 'danger';
         } else {
             $_SESSION['message'] = implode(' ', $errors);
             $_SESSION['message_type'] = 'danger';
         }
     }
 }
+
+$pageScripts = ['assets/js/wizard.js'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Submit Complaint - OSWD</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/style.css">
+    <?php $pageTitle = 'Submit Complaint - ' . SITE_NAME; include 'includes/head.php'; ?>
 </head>
-<body>
-    <?php include 'includes/navbar.php'; ?>
-    <div class="container-fluid">
-        <div class="row">
-            <?php include 'includes/sidebar.php'; ?>
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2">Submit New Complaint</h1>
-                </div>
-                <?php if (isset($_SESSION['message'])): ?>
-                    <?php echo showAlert($_SESSION['message'], $_SESSION['message_type'] ?? 'info'); ?>
-                    <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
-                <?php endif; ?>
-                <div class="card">
-                    <div class="card-body">
-                        <form method="POST" action="submit_complaint.php" enctype="multipart/form-data">
-                            <?php echo csrfField(); ?>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Complaint Title *</label>
-                                    <input type="text" class="form-control" name="complaint_title" required>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Complaint Category *</label>
-                                    <select class="form-control" name="complaint_category" required>
-                                        <option value="">Select Category</option>
-                                        <option value="Academic Integrity Violation">Academic Integrity Violation</option>
-                                        <option value="Unprofessional Behavior">Unprofessional Behavior</option>
-                                        <option value="Institutional Rules Violation">Institutional Rules Violation</option>
-                                        <option value="Teaching Standards Failure">Teaching Standards Failure</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Complaint Description *</label>
-                                <textarea class="form-control" name="complaint_description" rows="5" required></textarea>
-                            </div>
+<body class="app-body">
+<?php include 'includes/skip_link.php'; ?>
+<?php include 'includes/navbar.php'; ?>
+<?php include 'includes/flash.php'; ?>
 
+<div class="container-fluid">
+    <div class="row">
+        <?php include 'includes/sidebar.php'; ?>
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 app-main" id="main-content">
+            <div class="pt-3 nemsu-page-header mb-4">
+                <h1 class="h2">File a complaint</h1>
+                <p class="text-muted mb-0">Three short steps. Your draft is saved locally until you submit.</p>
+            </div>
 
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Respondent Name</label>
-                                    <input type="text" class="form-control" name="respondent_name">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Respondent Type</label>
-                                    <select class="form-control" name="respondent_type">
-                                        <option value="">Select Type</option>
-                                        <option value="student">Student</option>
-                                        <option value="faculty">Faculty</option>
-                                        <option value="staff">Staff</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Incident Date *</label>
-                                    <input type="date" class="form-control" name="incident_date" required>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Incident Location</label>
-                                    <input type="text" class="form-control" name="incident_location">
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Severity *</label>
-                                    <select class="form-control" name="severity" required>
-                                        <option value="low">Low</option>
-                                        <option value="medium" selected>Medium</option>
-                                        <option value="high">High</option>
-                                        <option value="critical">Critical</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Supporting Documents (Optional)</label>
-                                <input type="file" class="form-control" name="supporting_documents" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
-                                <small class="text-muted">Max file size: 5MB. Allowed: PDF, JPG, PNG, DOC, DOCX</small>
-                            </div>
-                            <div class="d-grid gap-2">
-                                <button type="submit" name="submit_complaint" class="btn btn-primary">Submit Complaint</button>
-                                <a href="dashboard.php" class="btn btn-secondary">Cancel</a>
-                            </div>
-                        </form>
+            <?php if ($successId > 0): ?>
+                <div class="card nemsu-success-card text-center py-5 px-4">
+                    <div class="nemsu-success-card__icon" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></div>
+                    <h2 class="h4">Complaint submitted</h2>
+                    <p class="text-muted mb-3">Your reference number is</p>
+                    <p class="display-6 fw-bold text-primary mb-3">#<?php echo $successId; ?></p>
+                    <p class="small text-muted mb-4">Keep this number. You will receive updates in Notifications and on your dashboard.</p>
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
+                        <a href="view_complaint.php?id=<?php echo $successId; ?>" class="btn btn-primary">View your case</a>
+                        <a href="dashboard.php" class="btn btn-outline-secondary">Back to dashboard</a>
                     </div>
                 </div>
-            </main>
-        </div>
+            <?php else: ?>
+                <div id="complaintWizard" data-current-step="1">
+                    <ol class="nemsu-wizard-steps mb-4" aria-label="Complaint form progress">
+                        <li class="nemsu-wizard-step-indicator is-active" data-wizard-indicator="1"><span>1</span> What happened</li>
+                        <li class="nemsu-wizard-step-indicator" data-wizard-indicator="2"><span>2</span> Details</li>
+                        <li class="nemsu-wizard-step-indicator" data-wizard-indicator="3"><span>3</span> Review</li>
+                    </ol>
+
+                    <div id="wizardErrors" class="alert alert-danger py-2" role="alert" hidden aria-live="assertive"></div>
+
+                    <form method="POST" action="submit_complaint.php" enctype="multipart/form-data" id="submitComplaintForm">
+                        <?php echo csrfField(); ?>
+                        <input type="hidden" name="complaint_category" id="complaint_category" value="">
+
+                        <section data-wizard-step="1" class="nemsu-wizard-panel">
+                            <h2 class="h5 mb-3">What happened?</h2>
+                            <p class="text-muted small mb-3">Choose the option that best matches your concern.</p>
+                            <div class="row g-3">
+                                <?php foreach (complaintCategoryCards() as $card): ?>
+                                    <div class="col-md-6">
+                                        <div class="nemsu-category-card" tabindex="0" role="button"
+                                             data-category="<?php echo htmlspecialchars($card['name'], ENT_QUOTES, 'UTF-8'); ?>"
+                                             aria-pressed="false">
+                                            <i class="bi <?php echo htmlspecialchars($card['icon'], ENT_QUOTES, 'UTF-8'); ?> nemsu-category-card__icon" aria-hidden="true"></i>
+                                            <h3 class="h6 mb-1"><?php echo htmlspecialchars($card['name']); ?></h3>
+                                            <p class="small text-muted mb-2"><?php echo htmlspecialchars($card['example']); ?></p>
+                                            <span class="badge bg-light text-dark border"><i class="bi bi-signpost-2 me-1" aria-hidden="true"></i><?php echo htmlspecialchars($card['route']); ?></span>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="d-flex justify-content-end mt-4">
+                                <button type="button" class="btn btn-primary" data-wizard-next>Continue</button>
+                            </div>
+                        </section>
+
+                        <section data-wizard-step="2" class="nemsu-wizard-panel" hidden>
+                            <h2 class="h5 mb-3">Tell us more</h2>
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label for="complaint_title" class="form-label">Short title *</label>
+                                    <input type="text" class="form-control" id="complaint_title" name="complaint_title" required maxlength="255">
+                                </div>
+                                <div class="col-12">
+                                    <label for="complaint_description" class="form-label">What happened? *</label>
+                                    <textarea class="form-control" id="complaint_description" name="complaint_description" rows="5" required></textarea>
+                                    <div class="form-text" id="descCounter">0 characters</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="respondent_name" class="form-label">Respondent name</label>
+                                    <input type="text" class="form-control" id="respondent_name" name="respondent_name">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="respondent_type" class="form-label">Respondent type</label>
+                                    <select class="form-select" id="respondent_type" name="respondent_type">
+                                        <option value="">Select type</option>
+                                        <?php foreach (allowedRespondentTypes() as $rt): ?>
+                                            <option value="<?php echo htmlspecialchars($rt); ?>"><?php echo htmlspecialchars(formatStatus($rt)); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="incident_date" class="form-label">Incident date *</label>
+                                    <input type="date" class="form-control" id="incident_date" name="incident_date" required max="<?php echo date('Y-m-d'); ?>">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="incident_location" class="form-label">Location</label>
+                                    <input type="text" class="form-control" id="incident_location" name="incident_location">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="severity" class="form-label">Severity *</label>
+                                    <select class="form-select" id="severity" name="severity" required>
+                                        <?php foreach (allowedSeverities() as $sev): ?>
+                                            <option value="<?php echo htmlspecialchars($sev); ?>" <?php echo $sev === 'medium' ? 'selected' : ''; ?>><?php echo htmlspecialchars(ucfirst($sev)); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="supporting_documents">Supporting evidence (optional)</label>
+                                    <div class="nemsu-file-drop" id="fileDropZone">
+                                        <i class="bi bi-cloud-arrow-up fs-3 d-block mb-2" aria-hidden="true"></i>
+                                        <p class="mb-2">Drag and drop a file here, or browse</p>
+                                        <input type="file" class="form-control" id="supporting_documents" name="supporting_documents"
+                                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                        <small class="text-muted d-block mt-2">Max 5MB · PDF, JPG, PNG, DOC, DOCX</small>
+                                    </div>
+                                    <div id="filePreview" class="mt-2"></div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="confidential_toggle" disabled>
+                                        <label class="form-check-label text-muted" for="confidential_toggle">
+                                            Submit confidentially (coming soon)
+                                        </label>
+                                    </div>
+                                    <!-- TODO: wire confidential flag when backend supports restricted visibility -->
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between mt-4">
+                                <button type="button" class="btn btn-outline-secondary" data-wizard-back>Back</button>
+                                <button type="button" class="btn btn-primary" data-wizard-next>Review</button>
+                            </div>
+                        </section>
+
+                        <section data-wizard-step="3" class="nemsu-wizard-panel" hidden>
+                            <h2 class="h5 mb-3">Review and submit</h2>
+                            <dl class="nemsu-review-list" id="wizardReview"></dl>
+                            <div class="d-flex justify-content-between mt-4">
+                                <button type="button" class="btn btn-outline-secondary" data-wizard-back>Back</button>
+                                <button type="submit" name="submit_complaint" class="btn btn-primary" id="submitComplaintBtn">Submit complaint</button>
+                            </div>
+                        </section>
+                    </form>
+                </div>
+            <?php endif; ?>
+        </main>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</div>
+<?php include 'includes/scripts.php'; ?>
 </body>
 </html>

@@ -68,27 +68,8 @@ class User {
     }
     
     public function login($username, $password) {
-        try {
-            $sql = "SELECT * FROM users WHERE (username = :username OR email = :email) 
-                    AND status = 'active' LIMIT 1";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([':username' => $username, ':email' => $username]);
-            $user = $stmt->fetch();
-            
-            if ($user && password_verify($password, $user['password'])) {
-                session_regenerate_id(true);
-                $_SESSION['user_id'] = $user['user_id'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['full_name'] = $user['full_name'];
-                $_SESSION['role'] = $user['role'];
-                $_SESSION['email'] = $user['email'];
-                
-                return ['success' => true, 'message' => 'Login successful!', 'user' => $user];
-            }
-            return ['success' => false, 'message' => 'Invalid credentials!'];
-        } catch (PDOException $e) {
-            return ['success' => false, 'message' => 'Login error. Please try again.'];
-        }
+        $auth = new LoginAuth();
+        return $auth->attempt($username, $password);
     }
     
     public function getUserById($userId) {
@@ -113,6 +94,54 @@ class User {
         }
     }
     
+    public function deleteUser($targetUserId, $actorUserId) {
+        $targetUserId = (int)$targetUserId;
+        $actorUserId = (int)$actorUserId;
+
+        if ($targetUserId <= 0) {
+            return ['success' => false, 'message' => 'Invalid user account.'];
+        }
+
+        if ($targetUserId === $actorUserId) {
+            return ['success' => false, 'message' => 'You cannot delete your own account while signed in.'];
+        }
+
+        $user = $this->getUserById($targetUserId);
+        if (!$user) {
+            return ['success' => false, 'message' => 'User not found.'];
+        }
+
+        if (($user['role'] ?? '') === 'oswd') {
+            $stmt = $this->db->query(
+                "SELECT COUNT(*) FROM users WHERE role = 'oswd' AND status = 'active'"
+            );
+            if ((int)$stmt->fetchColumn() <= 1) {
+                return [
+                    'success' => false,
+                    'message' => 'Cannot delete the last active OSWD administrator account.',
+                ];
+            }
+        }
+
+        try {
+            $stmt = $this->db->prepare('DELETE FROM users WHERE user_id = :user_id');
+            $stmt->execute([':user_id' => $targetUserId]);
+            if ($stmt->rowCount() === 0) {
+                return ['success' => false, 'message' => 'User could not be deleted.'];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Account for ' . ($user['username'] ?? 'user') . ' was deleted.',
+            ];
+        } catch (PDOException $e) {
+            return [
+                'success' => false,
+                'message' => 'Failed to delete account. Please try again or contact support.',
+            ];
+        }
+    }
+
     public function updateProfile($userId, $data) {
         try {
             $sql = "UPDATE users SET full_name = :full_name, email = :email, contact_number = :contact_number,

@@ -1,54 +1,84 @@
 <?php
 $role = $_SESSION['role'] ?? '';
 ?>
-<nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
-    <div class="position-sticky pt-3">
-        <ul class="nav flex-column">
-            <li class="nav-item">
-                <a class="nav-link" href="dashboard.php">
-                    <i class="fas fa-home"></i> Dashboard
-                </a>
-            </li>
-            
-            <?php if ($role === 'student'): ?>
+<div class="col-auto px-0 nemsu-sidebar-col">
+    <div class="offcanvas-md offcanvas-start sidebar nemsu-sidebar" tabindex="-1" id="sidebarOffcanvas"
+         aria-labelledby="sidebarOffcanvasLabel">
+        <div class="offcanvas-header d-md-none border-bottom">
+            <h2 class="offcanvas-title h6" id="sidebarOffcanvasLabel">Navigation</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebarOffcanvas"
+                    aria-label="Close navigation"></button>
+        </div>
+        <div class="offcanvas-body nemsu-sidebar__body">
+            <p class="sidebar-label">Navigation</p>
+            <ul class="nav flex-column nemsu-sidebar__nav">
                 <li class="nav-item">
-                    <a class="nav-link" href="submit_complaint.php">
-                        <i class="fas fa-plus-circle"></i> Submit Complaint
+                    <a class="<?php echo navLinkClass('dashboard.php'); ?>" href="dashboard.php">
+                        <i class="bi bi-house-door" aria-hidden="true"></i>
+                        <span class="nemsu-sidebar__text">Dashboard</span>
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="my_complaints.php">
-                        <i class="fas fa-list"></i> My Complaints
-                    </a>
-                </li>
-            <?php endif; ?>
-            
-            <?php if (in_array($role, staffRoles(), true)): ?>
-                <li class="nav-item">
-                    <a class="nav-link" href="complaints.php">
-                        <i class="fas fa-folder-open"></i> All Complaints
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="assigned_complaints.php">
-                        <i class="fas fa-tasks"></i> Assigned to Me
-                    </a>
-                </li>
-            <?php endif; ?>
-            
-            <?php if ($role === 'oswd'): ?>
-                <li class="nav-item">
-                    <a class="nav-link" href="reports.php">
-                        <i class="fas fa-chart-bar"></i> Reports
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="users.php">
-                        <i class="fas fa-users"></i> Users
-                    </a>
-                </li>
-            <?php endif; ?>
-        </ul>
-    </div>
-</nav>
 
+                <?php if ($role === 'student'): ?>
+                    <li class="nav-item">
+                        <a class="<?php echo navLinkClass('submit_complaint.php'); ?>" href="submit_complaint.php">
+                            <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                            <span class="nemsu-sidebar__text">Submit complaint</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="<?php echo navLinkClass('my_complaints.php'); ?>" href="my_complaints.php">
+                            <i class="bi bi-journal-text" aria-hidden="true"></i>
+                            <span class="nemsu-sidebar__text">My complaints</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="<?php echo navLinkClass('notifications.php'); ?>" href="notifications.php">
+                            <i class="bi bi-bell" aria-hidden="true"></i>
+                            <span class="nemsu-sidebar__text">Notifications</span>
+                        </a>
+                    </li>
+                <?php endif; ?>
+
+                <?php if (in_array($role, staffRoles(), true) && $role !== 'oswd'): ?>
+                    <li class="nav-item">
+                        <a class="<?php echo navLinkClass('assigned_complaints.php'); ?>" href="assigned_complaints.php">
+                            <i class="bi bi-inbox" aria-hidden="true"></i>
+                            <span class="nemsu-sidebar__text">Assigned to me</span>
+                        </a>
+                    </li>
+                <?php endif; ?>
+            </ul>
+
+            <?php if ($role === 'oswd'): ?>
+                <p class="sidebar-label nemsu-sidebar__section-label">Administration</p>
+                <ul class="nav flex-column nemsu-sidebar__nav">
+                    <li class="nav-item">
+                        <a class="<?php echo navLinkClass('complaints.php'); ?>" href="complaints.php">
+                            <i class="bi bi-folder2-open" aria-hidden="true"></i>
+                            <span class="nemsu-sidebar__text">All complaints</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="<?php echo navLinkClass('reports.php'); ?>" href="reports.php">
+                            <i class="bi bi-bar-chart" aria-hidden="true"></i>
+                            <span class="nemsu-sidebar__text">Reports</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="<?php echo navLinkClass('login_security.php'); ?>" href="login_security.php">
+                            <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                            <span class="nemsu-sidebar__text">Login security</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="<?php echo navLinkClass('users.php'); ?>" href="users.php">
+                            <i class="bi bi-people" aria-hidden="true"></i>
+                            <span class="nemsu-sidebar__text">Users</span>
+                        </a>
+                    </li>
+                </ul>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>

@@ -42,12 +42,14 @@ CREATE TABLE IF NOT EXISTS complaints (
     complaint_description TEXT NOT NULL,
     complaint_category VARCHAR(100),
     predicted_category VARCHAR(100),
+    complaint_type ENUM('behavioral','services') NOT NULL DEFAULT 'behavioral',
     incident_date DATE NOT NULL,
     incident_location VARCHAR(255),
     severity ENUM('low', 'medium', 'high', 'critical') DEFAULT 'medium',
     status ENUM('pending', 'under_review', 'investigating', 'resolved', 'rejected', 'escalated') DEFAULT 'pending',
     supporting_documents TEXT,
     assigned_to INT,
+    current_level ENUM('program_coordinator','department_chair','guidance_office','oswd') NOT NULL DEFAULT 'program_coordinator',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (complainant_id) REFERENCES users(user_id) ON DELETE CASCADE,
@@ -112,21 +114,71 @@ CREATE TABLE IF NOT EXISTS complaint_escalations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ===================================================================
+-- TABLE: login_events / login_otps (Random Forest login risk)
+-- ===================================================================
+CREATE TABLE IF NOT EXISTS login_events (
+    event_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL,
+    username_attempted VARCHAR(150) NOT NULL,
+    success TINYINT(1) NOT NULL DEFAULT 0,
+    failure_reason VARCHAR(50) NULL,
+    ip_hash CHAR(64) NOT NULL,
+    user_agent_hash CHAR(64) NOT NULL,
+    risk_score DECIMAL(5,4) NULL,
+    risk_label ENUM('low','medium','high') NULL,
+    model_version VARCHAR(20) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS login_otps (
+    otp_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    otp_hash CHAR(64) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===================================================================
+-- TABLE: notifications
+-- Description: In-app alerts for students about complaint updates
+-- ===================================================================
+CREATE TABLE IF NOT EXISTS notifications (
+    notification_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    complaint_id INT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    is_read TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (complaint_id) REFERENCES complaints(complaint_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===================================================================
 -- DEFAULT DATA: Complaint Categories
 -- ===================================================================
 INSERT IGNORE INTO complaint_categories (category_name, category_description) VALUES
 ('Academic Integrity Violation', 'Grading disputes, favoritism, failure to meet academic standards'),
 ('Unprofessional Behavior', 'Discriminatory practices, harassment, intimidation, abuse of power'),
 ('Institutional Rules Violation', 'Breach of code of conduct, academic policies'),
-('Teaching Standards Failure', 'Neglecting responsibilities, inadequate communication');
+('Teaching Standards Failure', 'Neglecting responsibilities, inadequate communication'),
+('Campus Services', 'Issues with campus services such as registrar, cashier, clinic, library, internet, and student support offices'),
+('Campus Facilities', 'Issues with campus facilities such as classrooms, restrooms, buildings, equipment, lighting, and infrastructure');
 
 -- ===================================================================
--- DEFAULT DATA: Default Admin User
--- Username: admin
--- Password: admin123 (Please change after first login)
+-- DEFAULT DATA: Staff Accounts (change passwords after first login)
+-- admin / admin123 | coordinator / coordinator123 | chairperson / chair123
+-- counselor / counselor123 | oswdadmin / oswdadmin123
 -- ===================================================================
 INSERT IGNORE INTO users (username, email, password, full_name, role, status) VALUES
-('admin', 'oswd@nemsu.edu', '$2y$10$Q49BTnExRLAm2rrvq4Gm4.w.A9c9ULH0kUATFoIFGrE7n5JeDKZjy', 'OSWD Administrator', 'oswd', 'active');
+('admin', 'oswd@nemsu.edu', '$2y$10$Q49BTnExRLAm2rrvq4Gm4.w.A9c9ULH0kUATFoIFGrE7n5JeDKZjy', 'OSWD Administrator', 'oswd', 'active'),
+('coordinator', 'coordinator@nemsu.edu', '$2y$10$PPiQfoG62n8uoMZn9EXER.lGccNMxuBuaICIjchkIR5P5Y1mogqWu', 'Program Coordinator', 'program_coordinator', 'active'),
+('chairperson', 'chairperson@nemsu.edu', '$2y$10$gzEwzSOrzUK/hGI18GRLketjF7ST2F3nOw/xTxvtiP4UWzCRswHam', 'Program Chairperson', 'department_chair', 'active'),
+('counselor', 'counselor@nemsu.edu', '$2y$10$/O7z2edOJUkcq81Rnvw52OY3eRZH5aUBAxWt0scgTAarYpxMU5/XS', 'Guidance Counselor', 'guidance_office', 'active'),
+('oswdadmin', 'oswdadmin@nemsu.edu', '$2y$10$fuIeFJswJEByZd4kfVMjbuVTMG3qvGget65/9f3eMUqOkV8XZzLLG', 'OSWD Administrator', 'oswd', 'active');
 
 -- ===================================================================
 -- INDEXES: For Performance Optimization
@@ -136,6 +188,8 @@ CREATE INDEX idx_complaints_category ON complaints(predicted_category);
 CREATE INDEX idx_complaints_created ON complaints(created_at);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_status ON users(status);
+CREATE INDEX idx_notifications_user_read ON notifications(user_id, is_read);
+CREATE INDEX idx_notifications_created ON notifications(created_at);
 
 -- ===================================================================
 -- END OF DATABASE SCHEMA

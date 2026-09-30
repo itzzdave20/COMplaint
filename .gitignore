@@ -3,4 +3,5 @@ ml_model/models/
 *.pyc
 __pycache__/
 .env
+config/smtp.php
 .htaccess

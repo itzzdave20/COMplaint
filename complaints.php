@@ -1,10 +1,7 @@
 <?php
 require_once 'config/config.php';
 requireLogin();
-
-if (!hasRole(staffRoles())) {
-    redirect('dashboard.php');
-}
+requireRole('oswd');
 
 $complaint = new Complaint();
 $filters = [];
@@ -16,41 +13,44 @@ $complaints = $complaint->getAllComplaints($filters);
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>All Complaints - OSWD</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/style.css">
+    <?php $pageTitle = 'All Complaints - ' . SITE_NAME; include 'includes/head.php'; ?>
 </head>
-<body>
-    <?php include 'includes/navbar.php'; ?>
-    <div class="container-fluid">
-        <div class="row">
-            <?php include 'includes/sidebar.php'; ?>
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2">All Complaints</h1>
+<body class="app-body">
+<?php include 'includes/skip_link.php'; ?>
+<?php include 'includes/navbar.php'; ?>
+<?php include 'includes/flash.php'; ?>
+
+<div class="container-fluid">
+    <div class="row">
+        <?php include 'includes/sidebar.php'; ?>
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 app-main" id="main-content">
+            <div class="pt-3 nemsu-page-header mb-4">
+                <h1 class="h2">All complaints</h1>
+                <p class="text-muted mb-0">Complete OSWD case registry</p>
+            </div>
+
+            <form method="GET" class="row g-2 mb-3 align-items-end">
+                <div class="col-md-4">
+                    <label for="status" class="form-label small">Status</label>
+                    <select name="status" id="status" class="form-select form-select-sm">
+                        <option value="">All statuses</option>
+                        <?php foreach (allowedComplaintStatuses() as $st): ?>
+                            <option value="<?php echo htmlspecialchars($st); ?>" <?php echo ($_GET['status'] ?? '') === $st ? 'selected' : ''; ?>><?php echo htmlspecialchars(formatStatus($st)); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
-                <form method="GET" class="row g-2 mb-3">
-                    <div class="col-md-4">
-                        <select name="status" class="form-control">
-                            <option value="">All Statuses</option>
-                            <option value="pending" <?php echo ($_GET['status'] ?? '') === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                            <option value="under_review" <?php echo ($_GET['status'] ?? '') === 'under_review' ? 'selected' : ''; ?>>Under Review</option>
-                            <option value="investigating" <?php echo ($_GET['status'] ?? '') === 'investigating' ? 'selected' : ''; ?>>Investigating</option>
-                            <option value="resolved" <?php echo ($_GET['status'] ?? '') === 'resolved' ? 'selected' : ''; ?>>Resolved</option>
-                            <option value="rejected" <?php echo ($_GET['status'] ?? '') === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
-                            <option value="escalated" <?php echo ($_GET['status'] ?? '') === 'escalated' ? 'selected' : ''; ?>>Escalated</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <button class="btn btn-primary" type="submit">Filter</button>
-                    </div>
-                </form>
-                <div class="card">
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-striped table-hover">
+                <div class="col-md-2">
+                    <button class="btn btn-primary btn-sm" type="submit">Filter</button>
+                </div>
+            </form>
+
+            <div class="card nemsu-panel">
+                <div class="card-body p-0">
+                    <?php if (empty($complaints)): ?>
+                        <?php echo renderEmptyState('folder2-open', 'No complaints found', 'Try changing the status filter or check back later.'); ?>
+                    <?php else: ?>
+                        <div class="table-responsive nemsu-table-wrap">
+                            <table class="table table-hover align-middle mb-0 nemsu-table">
                                 <thead>
                                     <tr>
                                         <th>ID</th>
@@ -60,42 +60,31 @@ $complaints = $complaint->getAllComplaints($filters);
                                         <th>Status</th>
                                         <th>Severity</th>
                                         <th>Date</th>
-                                        <th>Actions</th>
+                                        <th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php if (empty($complaints)): ?>
-                                        <tr><td colspan="8" class="text-center">No complaints found</td></tr>
-                                    <?php else: ?>
-                                        <?php foreach ($complaints as $comp): ?>
-                                            <tr>
-                                                <td>#<?php echo $comp['complaint_id']; ?></td>
-                                                <td><?php echo htmlspecialchars($comp['complainant_name']); ?></td>
-                                                <td><?php echo htmlspecialchars($comp['complaint_title']); ?></td>
-                                                <td><?php echo htmlspecialchars($comp['predicted_category'] ?? $comp['complaint_category'] ?? 'N/A'); ?></td>
-                                                <td>
-                                                    <span class="badge bg-<?php echo statusBadgeClass($comp['status']); ?>">
-                                                        <?php echo htmlspecialchars(formatStatus($comp['status'])); ?>
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-<?php echo severityBadgeClass($comp['severity']); ?>">
-                                                        <?php echo htmlspecialchars(ucfirst((string)$comp['severity'])); ?>
-                                                    </span>
-                                                </td>
-                                                <td><?php echo date('M d, Y', strtotime($comp['created_at'])); ?></td>
-                                                <td><a href="view_complaint.php?id=<?php echo $comp['complaint_id']; ?>" class="btn btn-sm btn-primary">View</a></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
+                                    <?php foreach ($complaints as $comp): ?>
+                                        <tr>
+                                            <td>#<?php echo (int)$comp['complaint_id']; ?></td>
+                                            <td><?php echo htmlspecialchars($comp['complainant_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($comp['complaint_title']); ?></td>
+                                            <td><small><?php echo htmlspecialchars($comp['predicted_category'] ?? $comp['complaint_category'] ?? '—'); ?></small></td>
+                                            <td><?php echo statusBadgeHtml($comp['status']); ?></td>
+                                            <td><?php echo severityBadgeHtml($comp['severity']); ?></td>
+                                            <td><?php echo date('M j, Y', strtotime($comp['created_at'])); ?></td>
+                                            <td><a href="view_complaint.php?id=<?php echo (int)$comp['complaint_id']; ?>" class="btn btn-sm btn-primary">Open</a></td>
+                                        </tr>
+                                    <?php endforeach; ?>
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    <?php endif; ?>
                 </div>
-            </main>
-        </div>
+            </div>
+        </main>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</div>
+<?php include 'includes/scripts.php'; ?>
 </body>
 </html>
