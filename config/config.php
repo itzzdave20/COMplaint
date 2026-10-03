@@ -15,9 +15,42 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Site settings
-define('SITE_NAME', 'OSWD Complaint System');
-define('SITE_URL', 'http://localhost/Complaint');
+// Include database configuration
+require_once __DIR__ . '/database.php';
+
+// Autoload classes
+spl_autoload_register(function ($class) {
+    $paths = [
+        __DIR__ . '/../classes/',
+        __DIR__ . '/../controllers/',
+        __DIR__ . '/../models/'
+    ];
+    
+    foreach ($paths as $path) {
+        $file = $path . $class . '.php';
+        if (file_exists($file)) {
+            require_once $file;
+            return;
+        }
+    }
+});
+
+// Site settings. Values marked Settings::get() can be changed by the Super
+// Admin (Settings page); the rest are fixed here.
+define('SITE_NAME', Settings::get('site_name'));
+define('REGISTRATION_OPEN', Settings::get('registration_open'));
+define('MAINTENANCE_MODE', Settings::get('maintenance_mode'));
+define('MAINTENANCE_MESSAGE', Settings::get('maintenance_message'));
+// Use the host the visitor actually reached (e.g. 192.168.1.59 from a phone on
+// the same Wi-Fi) so redirects work on every device. Only localhost and
+// private LAN addresses are trusted; anything else falls back to localhost so
+// a forged Host header can't poison links in emails.
+$requestHost = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+$trustedHost = preg_match(
+    '/^(localhost|127\.0\.0\.1|10(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2})(:\d{1,5})?$/',
+    $requestHost
+);
+define('SITE_URL', 'http://' . ($trustedHost ? $requestHost : 'localhost') . '/Complaint');
 define('SITE_LOGO', 'assets/images/nemsu-logo.png');
 define('ADMIN_EMAIL', 'oswd@nemsu.edu');
 
@@ -45,14 +78,14 @@ define('PYTHON_PATH', 'python');
 define('ML_MODEL_PATH', __DIR__ . '/../ml_model/');
 
 // Login Random Forest risk scoring
-define('LOGIN_RF_ENABLED', true);
+define('LOGIN_RF_ENABLED', Settings::get('login_rf_enabled'));
 define('LOGIN_RF_SHADOW_MODE', false);
 define('LOGIN_HASH_SALT', 'nemsu-oswd-login-v1');
-define('LOGIN_OTP_TTL', 600);
-define('LOGIN_COOLDOWN_AFTER_FAILS', 2);
-define('LOGIN_COOLDOWN_SECONDS', 30);
-define('LOGIN_BLOCK_AFTER_FAILS', 3);
-define('LOGIN_BLOCK_SECONDS', 86400);
+define('LOGIN_OTP_TTL', Settings::get('login_otp_minutes') * 60);
+define('LOGIN_COOLDOWN_AFTER_FAILS', Settings::get('login_cooldown_after_fails'));
+define('LOGIN_COOLDOWN_SECONDS', Settings::get('login_cooldown_seconds'));
+define('LOGIN_BLOCK_AFTER_FAILS', Settings::get('login_block_after_fails'));
+define('LOGIN_BLOCK_SECONDS', Settings::get('login_block_hours') * 3600);
 define('LOGIN_RESET_TTL', 3600);
 
 // Timezone
@@ -70,25 +103,71 @@ if (!headers_sent()) {
     header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; frame-ancestors 'none'");
 }
 
-// Include database configuration
-require_once __DIR__ . '/database.php';
 
-// Autoload classes
-spl_autoload_register(function ($class) {
-    $paths = [
-        __DIR__ . '/../classes/',
-        __DIR__ . '/../controllers/',
-        __DIR__ . '/../models/'
-    ];
-    
-    foreach ($paths as $path) {
-        $file = $path . $class . '.php';
-        if (file_exists($file)) {
-            require_once $file;
-            return;
+/*
+ * Sign-in activity. A user counts as "Active" in User management while they
+ * have opened a page within USER_ACTIVE_WINDOW seconds and not logged out.
+ * Closing the browser without logging out shows "Inactive" once that time
+ * has passed. Logging out clears it at once (see logout.php).
+ */
+define('USER_ACTIVE_WINDOW', Settings::get('user_active_minutes') * 60);
+
+if (isset($_SESSION['user_id']) && PHP_SAPI !== 'cli') {
+    // Write at most once a minute per session, not on every page load.
+    if (time() - (int)($_SESSION['activity_saved_at'] ?? 0) >= 60) {
+        try {
+            Database::getInstance()->getConnection()
+                ->prepare('UPDATE users SET last_activity_at = NOW(), is_signed_in = 1 WHERE user_id = :id')
+                ->execute([':id' => (int)$_SESSION['user_id']]);
+            $_SESSION['activity_saved_at'] = time();
+        } catch (PDOException $e) {
+            // Column missing (migration not run yet): never block the page.
         }
     }
-});
+}
+
+/*
+ * Automatic backups (Super Admin → Settings → Automatic backups). After the
+ * page has been built, check whether a backup is due; usually this is just
+ * a file-timestamp check. A failure here must never break the page.
+ */
+if (PHP_SAPI !== 'cli') {
+    register_shutdown_function(function () {
+        try {
+            DatabaseBackup::autoBackupIfDue();
+        } catch (Throwable $e) {
+            error_log('Automatic backup failed: ' . $e->getMessage());
+        }
+    });
+}
+
+/*
+ * Maintenance mode (Super Admin → Settings): everyone except the Super Admin
+ * is signed out on their next page load. LoginAuth also refuses new
+ * sign-ins for them while it is on.
+ */
+if (MAINTENANCE_MODE && isset($_SESSION['user_id']) && ($_SESSION['role'] ?? '') !== 'super_admin' && PHP_SAPI !== 'cli') {
+    $_SESSION = ['message' => MAINTENANCE_MESSAGE, 'message_type' => 'warning'];
+    session_regenerate_id(true);
+    redirect('login.php');
+}
+
+/**
+ * Status shown in User management:
+ *   'deactivated' — account switched off by the Super Admin (cannot sign in)
+ *   'active'      — signed in and used the system in the last 10 minutes
+ *   'inactive'    — logged out, or idle longer than that
+ * $user['recently_active'] is computed in SQL (USER_RECENTLY_ACTIVE_SQL) so
+ * the comparison uses the database clock, whatever PHP's time zone is.
+ */
+define('USER_RECENTLY_ACTIVE_SQL', '(is_signed_in = 1 AND last_activity_at IS NOT NULL AND last_activity_at >= NOW() - INTERVAL ' . USER_ACTIVE_WINDOW . ' SECOND)');
+
+function userPresence(array $user) {
+    if (($user['status'] ?? '') !== 'active') {
+        return 'deactivated';
+    }
+    return !empty($user['recently_active']) ? 'active' : 'inactive';
+}
 
 // Helper functions
 function redirect($url) {
@@ -241,6 +320,75 @@ function staffRoles() {
     return ['oswd', 'program_coordinator', 'department_chair', 'guidance_office'];
 }
 
+/**
+ * Every role in the system, in display order. The Super Admin is NOT a
+ * staff role: it never receives or handles complaints, so staffRoles()
+ * above deliberately leaves it out.
+ */
+function allRoles() {
+    return ['student', 'program_coordinator', 'department_chair', 'guidance_office', 'oswd', 'super_admin'];
+}
+
+/**
+ * The campus departments. Accounts created by the Super Admin must use one
+ * of these, so every department's personnel are spelled the same way.
+ */
+function departments() {
+    return ['DIT', 'DCS', 'CCJE', 'DBM', 'DGTT'];
+}
+
+/**
+ * Roles that belong to ONE department, so a department is required for
+ * them. Guidance, OSWD and the Super Admin serve the whole campus.
+ */
+function departmentRoles() {
+    return ['program_coordinator', 'department_chair'];
+}
+
+/**
+ * Strong password rules for accounts made by the Super Admin and by
+ * create_super_admin.php. Returns a list of problems (empty = password OK).
+ * Modelled on Django's default validators: minimum length, character mix,
+ * common-password list, and similarity to the username/email.
+ */
+function passwordPolicyErrors($password, $username = '', $email = '') {
+    $password = (string)$password;
+    $errors = [];
+
+    if (strlen($password) < 12) {
+        $errors[] = 'Use at least 12 characters.';
+    }
+    if (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password)) {
+        $errors[] = 'Use both upper-case and lower-case letters.';
+    }
+    if (!preg_match('/\d/', $password)) {
+        $errors[] = 'Include at least one number.';
+    }
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        $errors[] = 'Include at least one symbol (for example ! @ # $).';
+    }
+
+    // Common passwords (and these with numbers stuck on the end) are rejected.
+    $common = ['password', 'admin', 'administrator', 'superadmin', 'qwerty', 'letmein', 'welcome',
+               'iloveyou', 'nemsu', 'oswd', 'abc123', '123456', 'passw0rd', 'changeme'];
+    $core = strtolower(preg_replace('/[^a-z]/i', '', $password));
+    if (in_array($core, $common, true)) {
+        $errors[] = 'This password is too common.';
+    }
+
+    // The password must not contain the username or the email's name part.
+    $lower = strtolower($password);
+    $emailName = strtolower(strstr((string)$email, '@', true) ?: '');
+    foreach ([strtolower((string)$username), $emailName] as $personal) {
+        if (strlen($personal) >= 3 && strpos($lower, $personal) !== false) {
+            $errors[] = 'The password is too similar to the username or email.';
+            break;
+        }
+    }
+
+    return $errors;
+}
+
 function workflowLevels() {
     return ['program_coordinator', 'department_chair', 'guidance_office', 'oswd'];
 }
@@ -265,6 +413,7 @@ function roleLabel($role) {
         'department_chair' => 'Program Chairperson',
         'guidance_office' => 'Guidance Counselor',
         'oswd' => 'OSWD Admin',
+        'super_admin' => 'Super Admin',
         default => formatStatus($role),
     };
 }
@@ -298,6 +447,11 @@ function dashboardMetaForRole($role) {
         'oswd' => [
             'title' => 'OSWD Admin Dashboard',
             'subtitle' => 'Campus services and facilities complaints come here directly. Final level for behavioral cases.',
+            'theme' => 'dark',
+        ],
+        'super_admin' => [
+            'title' => 'Super Admin',
+            'subtitle' => 'System-wide oversight: monitoring, accounts, audit and reports. View only for complaints.',
             'theme' => 'dark',
         ],
         default => [

@@ -2,6 +2,12 @@
 require_once 'config/config.php';
 requireLogin();
 
+// Every login (including after the Random Forest OTP step) lands here,
+// so this is where the Super Admin is sent to their own dashboard.
+if (hasRole('super_admin')) {
+    redirect('super_admin.php');
+}
+
 $complaint = new Complaint();
 
 $userRole = $_SESSION['role'];

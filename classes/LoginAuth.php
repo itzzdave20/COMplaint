@@ -41,6 +41,11 @@ class LoginAuth {
             ];
         }
 
+        // Maintenance mode (Super Admin → Settings): only the Super Admin may sign in.
+        if (MAINTENANCE_MODE && ($user['role'] ?? '') !== 'super_admin') {
+            return ['success' => false, 'message' => MAINTENANCE_MESSAGE];
+        }
+
         $lockout->recordSuccess($username, $user);
 
         if ($this->isLoginRfExempt($user)) {

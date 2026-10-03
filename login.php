@@ -124,6 +124,13 @@ if ($authMessage !== null) {
                     <?php endif; ?>
                 <?php endif; ?>
 
+                <?php if (MAINTENANCE_MODE): ?>
+                    <!-- Super Admin → Settings → Maintenance mode -->
+                    <div class="alert alert-warning py-2" role="status">
+                        <i class="bi bi-cone-striped me-1" aria-hidden="true"></i><?php echo htmlspecialchars(MAINTENANCE_MESSAGE, ENT_QUOTES, 'UTF-8'); ?>
+                    </div>
+                <?php endif; ?>
+
                 <?php if ($authMessage !== null): ?>
                     <div class="alert alert-<?php echo htmlspecialchars(in_array($authMessageType, ['success', 'danger', 'warning', 'info'], true) ? $authMessageType : 'info', ENT_QUOTES, 'UTF-8'); ?> py-2" role="alert" aria-live="assertive">
                         <?php echo htmlspecialchars($authMessage, ENT_QUOTES, 'UTF-8'); ?>

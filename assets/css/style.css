@@ -303,7 +303,7 @@ body.auth-body::before {
     color: var(--nemsu-text);
     padding: 0.65rem 0.85rem;
     margin: 0;
-    border-radius: var(--nemsu-radius-sm);
+    border-radius: 6px;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -340,10 +340,12 @@ body.auth-body::before {
     color: var(--nemsu-blue-800);
 }
 
+/* Active link uses the same navy gradient as the top navbar, with a thin
+   gold edge that echoes the navbar's gold underline. */
 .nemsu-sidebar .nav-link.active {
-    color: var(--nemsu-white);
-    background: linear-gradient(135deg, var(--nemsu-blue-800), var(--nemsu-blue-600));
-    box-shadow: 0 4px 12px rgba(13, 79, 159, 0.28);
+    color: #ffffff;
+    background: linear-gradient(90deg, var(--nemsu-blue-900), var(--nemsu-blue-800));
+    box-shadow: inset 3px 0 0 var(--nemsu-gold-500), 0 2px 6px rgba(5, 38, 84, 0.25);
 }
 
 .nemsu-sidebar .nav-link.active i {
@@ -355,6 +357,15 @@ body.auth-body::before {
         flex: 0 0 240px;
         width: 240px;
         max-width: 240px;
+    }
+
+    /* Fill the space beside the fixed-width sidebar instead of a % column,
+       which overflows the row and wraps below the sidebar. */
+    main.app-main {
+        flex: 1 1 0;
+        width: auto;
+        max-width: none;
+        min-width: 0;
     }
 }
 
@@ -1306,4 +1317,143 @@ body.auth-body {
     .nemsu-sticky-panel {
         position: static;
     }
+}
+
+/* ----- Stacked tables on phones -----
+   Tables with .nemsu-table--stack turn each row into a labelled card below
+   768px. Labels come from data-label, filled in by app.js from the header. */
+@media (max-width: 767.98px) {
+    .nemsu-table-wrap:has(.nemsu-table--stack) {
+        max-height: none;
+        overflow: visible;
+    }
+
+    .nemsu-table--stack thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+
+    .nemsu-table--stack,
+    .nemsu-table--stack tbody,
+    .nemsu-table--stack tr,
+    .nemsu-table--stack td {
+        display: block;
+        width: 100%;
+    }
+
+    .nemsu-table--stack tr {
+        padding: 0.6rem 0;
+        border-bottom: 1px solid var(--nemsu-border);
+    }
+
+    .nemsu-table--stack tr:last-child {
+        border-bottom: 0;
+    }
+
+    .nemsu-table--stack td {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 0.3rem 1rem;
+        border: 0;
+        text-align: right !important;
+        overflow-wrap: anywhere;
+    }
+
+    .nemsu-table--stack td[data-label]::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        max-width: 45%;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--nemsu-text-muted);
+        text-align: left;
+    }
+
+    .nemsu-table--stack td.nemsu-td-full {
+        display: block;
+        text-align: left !important;
+        padding-top: 0.5rem;
+    }
+
+    .nemsu-table--stack td.nemsu-td-full > .btn,
+    .nemsu-table--stack td.nemsu-td-full form .btn,
+    .nemsu-table--stack td.nemsu-td-full .btn-group {
+        width: 100%;
+        min-height: 40px;
+    }
+
+    .nemsu-table--stack td.nemsu-td-full form {
+        align-items: stretch !important;
+    }
+
+    .nemsu-table--stack td.nemsu-td-full form.d-inline {
+        display: block !important;
+    }
+}
+
+/* ----- Navy container headers (all dashboards) -----
+   Every card header inside the app gets the navbar's navy gradient and gold
+   underline, so panels, the top bar and the active sidebar link match.
+   The gold "Escalate case" header (.bg-warning-subtle) keeps its warning look. */
+.app-body .card {
+    border-color: rgba(10, 61, 122, 0.14);
+}
+
+.app-body .card-header:not(.bg-warning-subtle),
+.app-body .nemsu-panel .card-header:not(.bg-warning-subtle) {
+    background: linear-gradient(90deg, var(--nemsu-blue-900), var(--nemsu-blue-800));
+    color: #ffffff;
+    border-bottom: 2px solid var(--nemsu-gold-500);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.app-body .card-header:not(.bg-warning-subtle) :is(h1, h2, h3, h4, h5, h6, strong, span:not(.badge)) {
+    color: inherit;
+}
+
+.app-body .card-header:not(.bg-warning-subtle) > i,
+.app-body .card-header:not(.bg-warning-subtle) > span > i,
+.app-body .card-header:not(.bg-warning-subtle) :is(h1, h2, h3, h4, h5, h6) > i {
+    color: var(--nemsu-gold-300);
+}
+
+.app-body .card-header:not(.bg-warning-subtle) .text-muted,
+.app-body .card-header:not(.bg-warning-subtle) small {
+    color: rgba(255, 255, 255, 0.78) !important;
+}
+
+.app-body .card-header:not(.bg-warning-subtle) a:not(.btn) {
+    color: var(--nemsu-gold-300);
+}
+
+.app-body .card-header:not(.bg-warning-subtle) .btn-outline-primary,
+.app-body .card-header:not(.bg-warning-subtle) .btn-outline-secondary {
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+.app-body .card-header:not(.bg-warning-subtle) .btn-outline-primary:hover,
+.app-body .card-header:not(.bg-warning-subtle) .btn-outline-secondary:hover {
+    background: #ffffff;
+    color: var(--nemsu-blue-900);
+}
+
+/* Primary actions inside a navy header use the gold accent so they stand out. */
+.app-body .card-header:not(.bg-warning-subtle) .btn-primary {
+    background: var(--nemsu-gold-500);
+    border-color: var(--nemsu-gold-500);
+    color: var(--nemsu-blue-900);
+    font-weight: 600;
+}
+
+.app-body .card-header:not(.bg-warning-subtle) .btn-primary:hover {
+    background: var(--nemsu-gold-400);
+    border-color: var(--nemsu-gold-400);
 }

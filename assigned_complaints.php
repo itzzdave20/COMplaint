@@ -35,7 +35,7 @@ $roleMeta = dashboardMetaForRole($_SESSION['role']);
                         <?php echo renderEmptyState('inbox', 'Queue is clear', 'No complaints are assigned to you right now.', 'Go to dashboard', 'dashboard.php'); ?>
                     <?php else: ?>
                         <div class="table-responsive nemsu-table-wrap">
-                            <table class="table table-hover align-middle mb-0 nemsu-table">
+                            <table class="table table-hover align-middle mb-0 nemsu-table nemsu-table--stack">
                                 <thead>
                                     <tr>
                                         <th>ID</th>

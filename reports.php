@@ -64,7 +64,7 @@ foreach ($stats as $status => $count) {
     $chartStatus['values'][] = $count;
 }
 
-$pageScripts = ['https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js', 'assets/js/reports.js'];
+$pageScripts = ['https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js', 'assets/js/reports.js?v=' . (int)@filemtime(__DIR__ . '/assets/js/reports.js')];
 ?>
 <!DOCTYPE html>
 <html lang="en">

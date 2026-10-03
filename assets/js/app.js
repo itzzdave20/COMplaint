@@ -69,10 +69,68 @@
         });
     }
 
+    // Copy each column header onto its cells so tables can stack into
+    // labelled cards on phones (see .nemsu-table--stack in style.css).
+    function labelStackTables() {
+        document.querySelectorAll('table.nemsu-table--stack').forEach(function (table) {
+            var headers = Array.prototype.map.call(table.querySelectorAll('thead th'), function (th) {
+                return {
+                    label: th.textContent.trim(),
+                    full: th.textContent.trim() === '' || th.classList.contains('nemsu-stack-full')
+                };
+            });
+            table.querySelectorAll('tbody tr').forEach(function (row) {
+                Array.prototype.forEach.call(row.cells, function (cell, index) {
+                    var header = headers[index];
+                    if (cell.colSpan > 1 || !header || header.full) {
+                        cell.classList.add('nemsu-td-full');
+                    } else {
+                        cell.setAttribute('data-label', header.label);
+                    }
+                });
+            });
+        });
+    }
+
+    // Pages can't use inline <script> (the Content-Security-Policy in
+    // config.php only allows script files), so small page behaviours are
+    // switched on with data- attributes and handled here.
+
+    // <div data-auto-refresh="60">: reload every N seconds, but not while
+    // the tab is hidden or the user is typing in a field.
+    function initAutoRefresh() {
+        var el = document.querySelector('[data-auto-refresh]');
+        var seconds = el ? parseInt(el.getAttribute('data-auto-refresh'), 10) : 0;
+        if (!seconds) {
+            return;
+        }
+        setInterval(function () {
+            if (document.visibilityState === 'visible' && !document.querySelector('input:focus, select:focus, textarea:focus')) {
+                window.location.reload();
+            }
+        }, seconds * 1000);
+    }
+
+    // <button data-confirm-when="someCheckboxId" data-confirm-when-message="...">:
+    // ask for confirmation only when that radio/checkbox is selected.
+    function initConditionalConfirm() {
+        document.querySelectorAll('[data-confirm-when]').forEach(function (button) {
+            button.addEventListener('click', function (event) {
+                var option = document.getElementById(button.getAttribute('data-confirm-when'));
+                if (option && option.checked && !window.confirm(button.getAttribute('data-confirm-when-message'))) {
+                    event.preventDefault();
+                }
+            });
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         markReady();
         setActiveNav();
         enhanceButtons();
         initConfirmModals();
+        labelStackTables();
+        initAutoRefresh();
+        initConditionalConfirm();
     });
 })();

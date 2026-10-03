@@ -2,7 +2,7 @@
 <script src="assets/js/toast.js" defer></script>
 <script src="assets/js/theme.js" defer></script>
 <script src="assets/js/auth.js" defer></script>
-<script src="assets/js/app.js" defer></script>
+<script src="assets/js/app.js?v=<?php echo (int)@filemtime(__DIR__ . '/../assets/js/app.js'); ?>" defer></script>
 <?php
 if (!empty($pageScripts) && is_array($pageScripts)) {
     foreach ($pageScripts as $scriptPath) {

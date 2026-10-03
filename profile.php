@@ -82,11 +82,22 @@ $user = $userObj->getUserById($_SESSION['user_id']);
                             </div>
                             <div class="col-md-6">
                                 <label for="department" class="form-label">Department</label>
-                                <input type="text" class="form-control" id="department" name="department" value="<?php echo htmlspecialchars($user['department'] ?? ''); ?>">
+                                <?php if (($user['role'] ?? '') === 'student'): ?>
+                                    <select class="form-select" id="department" name="department" required>
+                                        <option value="">Choose your department</option>
+                                        <?php foreach (departments() as $dept): ?>
+                                            <option value="<?php echo $dept; ?>" <?php echo ($user['department'] ?? '') === $dept ? 'selected' : ''; ?>><?php echo $dept; ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                <?php else: ?>
+                                    <!-- Personnel: assigned by the Super Admin, so shown read-only -->
+                                    <input type="text" class="form-control" id="department" value="<?php echo htmlspecialchars($user['department'] ?: 'Not assigned'); ?>" readonly>
+                                    <div class="form-text">Assigned by the Super Admin.</div>
+                                <?php endif; ?>
                             </div>
                             <div class="col-12">
                                 <label for="program" class="form-label">Program</label>
-                                <input type="text" class="form-control" id="program" name="program" value="<?php echo htmlspecialchars($user['program'] ?? ''); ?>">
+                                <input type="text" class="form-control" id="program" name="program" value="<?php echo htmlspecialchars($user['program'] ?? ''); ?>"<?php echo ($user['role'] ?? '') === 'student' ? '' : ' readonly'; ?>>
                             </div>
                         </div>
                         <button type="submit" name="update_profile" class="btn btn-primary mt-4">Save changes</button>

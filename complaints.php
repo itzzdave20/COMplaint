@@ -50,7 +50,7 @@ $complaints = $complaint->getAllComplaints($filters);
                         <?php echo renderEmptyState('folder2-open', 'No complaints found', 'Try changing the status filter or check back later.'); ?>
                     <?php else: ?>
                         <div class="table-responsive nemsu-table-wrap">
-                            <table class="table table-hover align-middle mb-0 nemsu-table">
+                            <table class="table table-hover align-middle mb-0 nemsu-table nemsu-table--stack">
                                 <thead>
                                     <tr>
                                         <th>ID</th>

@@ -29,6 +29,31 @@ class User {
                 return ['success' => false, 'message' => 'Please enter a valid email address.'];
             }
 
+            // Registration can be closed by the Super Admin (Settings).
+            if (!REGISTRATION_OPEN || MAINTENANCE_MODE) {
+                return ['success' => false, 'message' => 'Student registration is currently closed.'];
+            }
+
+            // Only students on OSWD's enrolled list may register, and each
+            // Student ID can have one account. This is checked here (not only
+            // in register.php) so no other route can skip it.
+            $enrollment = new EnrollmentList();
+            $check = $enrollment->verifyForRegistration($data['student_id'] ?? '');
+            if (!$check['ok']) {
+                return ['success' => false, 'message' => $check['message']];
+            }
+            $data['student_id'] = EnrollmentList::normalizeId($data['student_id']);
+            // If OSWD's list gives the department, it wins over what was typed.
+            if (!empty($check['record']['department'])) {
+                $data['department'] = $check['record']['department'];
+            }
+
+            // Complaints are routed by the student's department, so it must
+            // be one of the official departments (chosen from a dropdown).
+            if (!in_array($data['department'] ?? '', departments(), true)) {
+                return ['success' => false, 'message' => 'Please choose your department.'];
+            }
+
             if (strlen($password) < 6) {
                 return ['success' => false, 'message' => 'Password must be at least 6 characters.'];
             }
@@ -38,9 +63,10 @@ class User {
                 $role = 'student';
             }
 
-            $sql = "INSERT INTO users (username, email, password, full_name, role, student_id, 
-                    department, program, contact_number) 
-                    VALUES (:username, :email, :password, :full_name, :role, :student_id, 
+            // Every student gets a random alias so personnel never see the real name.
+            $sql = "INSERT INTO users (username, email, password, full_name, alias, role, student_id,
+                    department, program, contact_number)
+                    VALUES (:username, :email, :password, :full_name, :alias, :role, :student_id,
                     :department, :program, :contact_number)";
             
             $stmt = $this->db->prepare($sql);
@@ -51,6 +77,7 @@ class User {
                 ':email' => $email,
                 ':password' => $hashedPassword,
                 ':full_name' => $fullName,
+                ':alias' => $this->generateAlias(),
                 ':role' => $role,
                 ':student_id' => emptyToNull($data['student_id'] ?? null),
                 ':department' => emptyToNull($data['department'] ?? null),
@@ -111,6 +138,11 @@ class User {
             return ['success' => false, 'message' => 'User not found.'];
         }
 
+        // Only the Super Admin manages Super Admin accounts (see super_admin_users.php).
+        if (($user['role'] ?? '') === 'super_admin') {
+            return ['success' => false, 'message' => 'Super Admin accounts cannot be deleted here.'];
+        }
+
         if (($user['role'] ?? '') === 'oswd') {
             $stmt = $this->db->query(
                 "SELECT COUNT(*) FROM users WHERE role = 'oswd' AND status = 'active'"
@@ -142,8 +174,37 @@ class User {
         }
     }
 
+    /**
+     * Random, unique student alias such as "Student-7F3KQ2".
+     * Characters 0/O/1/I are left out so aliases are easy to read aloud.
+     */
+    public function generateAlias() {
+        $check = $this->db->prepare('SELECT 1 FROM users WHERE alias = :alias');
+        do {
+            $alias = 'Student-';
+            for ($i = 0; $i < 6; $i++) {
+                $alias .= '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'[random_int(0, 31)];
+            }
+            $check->execute([':alias' => $alias]);
+        } while ($check->fetch());
+        return $alias;
+    }
+
     public function updateProfile($userId, $data) {
         try {
+            $current = $this->getUserById($userId);
+            $department = emptyToNull($data['department'] ?? null);
+            $program = emptyToNull($data['program'] ?? null);
+
+            if (($current['role'] ?? '') !== 'student') {
+                // Personnel department/program decide which complaints they
+                // receive, so only the Super Admin may change them.
+                $department = $current['department'] ?? null;
+                $program = $current['program'] ?? null;
+            } elseif (!in_array($department, departments(), true)) {
+                return ['success' => false, 'message' => 'Please choose your department from the list.'];
+            }
+
             $sql = "UPDATE users SET full_name = :full_name, email = :email, contact_number = :contact_number,
                     department = :department, program = :program WHERE user_id = :user_id";
             $stmt = $this->db->prepare($sql);
@@ -151,8 +212,8 @@ class User {
                 ':full_name' => trim($data['full_name'] ?? ''),
                 ':email' => trim($data['email'] ?? ''),
                 ':contact_number' => emptyToNull($data['contact_number'] ?? null),
-                ':department' => emptyToNull($data['department'] ?? null),
-                ':program' => emptyToNull($data['program'] ?? null),
+                ':department' => $department,
+                ':program' => $program,
                 ':user_id' => $userId
             ]);
             return ['success' => true, 'message' => 'Profile updated successfully'];

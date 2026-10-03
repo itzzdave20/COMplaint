@@ -52,7 +52,7 @@ $users = $userObj->getAllUsers();
                         <?php echo renderEmptyState('people', 'No users found', 'There are no accounts in the system yet.'); ?>
                     <?php else: ?>
                         <div class="table-responsive nemsu-table-wrap">
-                            <table class="table table-hover align-middle mb-0 nemsu-table">
+                            <table class="table table-hover align-middle mb-0 nemsu-table nemsu-table--stack">
                                 <thead>
                                     <tr>
                                         <th>ID</th>
@@ -62,7 +62,7 @@ $users = $userObj->getAllUsers();
                                         <th>Role</th>
                                         <th>Status</th>
                                         <th>Created</th>
-                                        <th class="text-end">Actions</th>
+                                        <th class="text-end nemsu-stack-full">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -100,7 +100,7 @@ $users = $userObj->getAllUsers();
                                                                 class="btn btn-sm btn-outline-danger"
                                                                 aria-label="Delete account <?php echo htmlspecialchars($u['username'], ENT_QUOTES, 'UTF-8'); ?>">
                                                             <i class="bi bi-trash" aria-hidden="true"></i>
-                                                            <span class="d-none d-lg-inline">Delete</span>
+                                                            <span class="d-md-none d-lg-inline">Delete</span>
                                                         </button>
                                                     </form>
                                                 <?php endif; ?>

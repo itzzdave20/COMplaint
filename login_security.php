@@ -163,7 +163,7 @@ function loginRiskBadgeClass($label) {
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive nemsu-table-wrap">
-                            <table class="table table-hover align-middle mb-0 nemsu-table">
+                            <table class="table table-hover align-middle mb-0 nemsu-table nemsu-table--stack">
                                 <thead>
                                     <tr>
                                         <th>When</th>

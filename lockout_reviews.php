@@ -81,7 +81,7 @@ function lockoutStatusBadge($value) {
                         <?php echo renderEmptyState('shield-check', 'No requests found', 'There are no lockout reviews in this filter.'); ?>
                     <?php else: ?>
                         <div class="table-responsive nemsu-table-wrap">
-                            <table class="table table-hover align-middle mb-0 nemsu-table">
+                            <table class="table table-hover align-middle mb-0 nemsu-table nemsu-table--stack">
                                 <thead>
                                     <tr>
                                         <th>Student</th>
@@ -90,7 +90,7 @@ function lockoutStatusBadge($value) {
                                         <th>Status</th>
                                         <th>Requested</th>
                                         <th>Message</th>
-                                        <th class="text-end">Actions</th>
+                                        <th class="text-end nemsu-stack-full">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>

@@ -23,6 +23,11 @@ $migrations = [
     'migrate_notifications.php',
     'migrate_login_risk.php',
     'migrate_lockout.php',
+    'migrate_super_admin.php',
+    'migrate_department_routing.php',
+    'migrate_user_presence.php',
+    'migrate_enrolled_students.php',
+    'migrate_settings.php',
 ];
 
 echo "=== OSWD Complaint System Setup ===\n\n";
